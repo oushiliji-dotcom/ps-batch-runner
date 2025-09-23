@@ -1,0 +1,32 @@
+version: 1.0.{build}
+
+image: Visual Studio 2022
+
+environment:
+  nodejs_version: "18"
+
+install:
+  - ps: Install-Product node $env:nodejs_version
+  - npm ci
+
+build_script:
+  - npm run build:win
+  - choco install innosetup -y
+  - '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+artifacts:
+  - path: dist\PSBatchRunner.exe
+    name: PSBatchRunner-Portable
+  - path: dist\PSBatchRunner-Setup.exe
+    name: PSBatchRunner-Installer
+
+deploy:
+  - provider: GitHub
+    auth_token:
+      secure: YOUR_GITHUB_TOKEN_HERE
+    artifact: /.*\.exe/
+    draft: false
+    prerelease: false
+    on:
+      branch: main
+      appveyor_repo_tag: true
