@@ -1,81 +1,132 @@
 const { ipcRenderer } = require('electron');
 
-// ... existing code ...
-document.addEventListener('DOMContentLoaded', () => {
-  const els = {
-    status: document.getElementById('status'),
-    log: document.getElementById('log'),
-    inputDir: document.getElementById('inputDir'),
-    photoshopPath: document.getElementById('photoshopPath'),
-    jsxPath: document.getElementById('jsxPath'),
-    outputDir: document.getElementById('outputDir'),
-    rulesJsonPath: document.getElementById('rulesJsonPath'),
-    settingsModal: document.getElementById('settingsModal'),
-    settingsBtn: document.getElementById('settingsBtn'),
-    closeSettings: document.getElementById('closeSettings'),
-    runBtn: document.getElementById('runBtn'),
-    selectInputDir: document.getElementById('selectInputDir'),
-    selectPhotoshopPath: document.getElementById('selectPhotoshopPath'),
-    selectJsxFile: document.getElementById('selectJsxFile'),
-    selectOutputDir: document.getElementById('selectOutputDir'),
-    selectRulesJson: document.getElementById('selectRulesJson'),
-    saveConfig: document.getElementById('saveConfig'),
-  };
+function log(message, type = 'info') {
+  const logEl = document.getElementById('log');
+  const ts = new Date().toLocaleTimeString();
+  const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+  if (logEl) {
+    logEl.textContent += `[${ts}] ${prefix} ${message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+function setStatus(text) {
+  const el = document.getElementById('status');
+  if (el) el.textContent = text;
+}
 
-  // 检查必要元素是否存在，避免旧 ID 报错
-  const missing = Object.keys(els).filter(k => !els[k]).join(', ');
-  if (missing) {
-    console.error('缺少必要的UI元素:', missing);
-    if (els.log) els.log.textContent += `缺少必要的UI元素: ${missing}\n`;
+function ensureDom(ids) {
+  const missing = ids.filter(id => !document.getElementById(id));
+  if (missing.length) {
+    log(`缺少必要的UI元素: ${missing.join(', ')}`, 'error');
+    throw new Error(`缺少必要的UI元素: ${missing.join(', ')}`);
+  }
+}
+
+async function init() {
+  log('渲染进程开始初始化...');
+  setStatus('初始化中...');
+
+  // 步骤1：页面DOM加载完成
+  log('步骤1：页面DOM加载完成');
+
+  // 步骤2：检查 Node.js 集成是否启用
+  try {
+    const ok = typeof require === 'function' && !!process && !!process.versions && !!process.versions.electron;
+    if (!ok) throw new Error('Node.js集成未启用，无法使用Electron内核');
+    log('步骤2：✅ Node.js集成检测通过');
+  } catch (e) {
+    log(`渲染进程初始化失败：${e.message}`, 'error');
+    setStatus('初始化失败');
     return;
   }
 
-  // 事件绑定（仅按新 ID）
-  els.settingsBtn.addEventListener('click', () => els.settingsModal.setAttribute('aria-hidden', 'false'));
-  els.closeSettings.addEventListener('click', () => els.settingsModal.setAttribute('aria-hidden', 'true'));
-  els.selectInputDir.addEventListener('click', async () => { const p = await ipcRenderer.invoke('select-directory'); if (p) { els.inputDir.value = p; } });
-  els.selectPhotoshopPath.addEventListener('click', async () => { const p = await ipcRenderer.invoke('select-file', { filters: [{ name: 'Executable', extensions: ['exe'] }] }); if (p) { els.photoshopPath.value = p; } });
-  els.selectJsxFile.addEventListener('click', async () => { const p = await ipcRenderer.invoke('select-file', { filters: [{ name: 'JSX Files', extensions: ['jsx'] }] }); if (p) { els.jsxPath.value = p; } });
-  els.selectOutputDir.addEventListener('click', async () => { const p = await ipcRenderer.invoke('select-directory'); if (p) { els.outputDir.value = p; } });
-  els.selectRulesJson.addEventListener('click', async () => { const p = await ipcRenderer.invoke('select-file', { filters: [{ name: 'JSON Files', extensions: ['json'] }] }); if (p) { els.rulesJsonPath.value = p; } });
+  // 步骤3：尝试加载IPC通信模块
+  try { if (!ipcRenderer) throw new Error('无法加载ipcRenderer'); log('步骤3：✅ IPC通信模块加载成功'); }
+  catch (e) { log(`渲染进程初始化失败：${e.message}`, 'error'); setStatus('初始化失败'); return; }
 
-  els.saveConfig.addEventListener('click', async () => {
-    const cfg = {
-      inputDir: els.inputDir.value,
-      photoshopPath: els.photoshopPath.value,
-      jsxPath: els.jsxPath.value,
-      outputDir: els.outputDir.value,
-      rulesJsonPath: els.rulesJsonPath.value
-    };
-    const r = await ipcRenderer.invoke('save-config', cfg);
-    (r && r.success) ? (els.log.textContent += '配置保存成功\n') : (els.log.textContent += `配置保存失败: ${r && r.error}\n`);
+  // 步骤4：检查页面UI元素是否存在
+  const ids = [
+    'settingsBtn','runBtn','inputDir','selectInputDir','status','log',
+    'settingsModal','closeSettings','photoshopPath','selectPhotoshopPath',
+    'jsxPath','selectJsxFile','outputDir','selectOutputDir',
+    'rulesJsonPath','selectRulesJson','saveConfig'
+  ];
+  try { ensureDom(ids); log('步骤4：✅ 页面UI元素检测通过'); }
+  catch { setStatus('初始化失败'); return; }
+
+  // 绑定事件
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').setAttribute('aria-hidden', 'false');
+  });
+  document.getElementById('closeSettings').addEventListener('click', () => {
+    document.getElementById('settingsModal').setAttribute('aria-hidden', 'true');
   });
 
-  els.runBtn.addEventListener('click', async () => {
+  document.getElementById('selectInputDir').addEventListener('click', async () => {
+    const p = await ipcRenderer.invoke('select-directory');
+    if (p) document.getElementById('inputDir').value = p;
+  });
+  document.getElementById('selectPhotoshopPath').addEventListener('click', async () => {
+    const p = await ipcRenderer.invoke('select-file', { filters: [{ name: '可执行文件', extensions: ['exe'] }] });
+    if (p) document.getElementById('photoshopPath').value = p;
+  });
+  document.getElementById('selectJsxFile').addEventListener('click', async () => {
+    const p = await ipcRenderer.invoke('select-file', { filters: [{ name: 'JSX 脚本', extensions: ['jsx'] }] });
+    if (p) document.getElementById('jsxPath').value = p;
+  });
+  document.getElementById('selectOutputDir').addEventListener('click', async () => {
+    const p = await ipcRenderer.invoke('select-directory');
+    if (p) document.getElementById('outputDir').value = p;
+  });
+  document.getElementById('selectRulesJson').addEventListener('click', async () => {
+    const p = await ipcRenderer.invoke('select-file', { filters: [{ name: 'JSON 文件', extensions: ['json'] }] });
+    if (p) document.getElementById('rulesJsonPath').value = p;
+  });
+
+  document.getElementById('saveConfig').addEventListener('click', async () => {
     const cfg = {
-      inputDir: els.inputDir.value,
-      photoshopPath: els.photoshopPath.value,
-      jsxPath: els.jsxPath.value,
-      outputDir: els.outputDir.value,
-      rulesJsonPath: els.rulesJsonPath.value
+      inputDir: document.getElementById('inputDir').value,
+      photoshopPath: document.getElementById('photoshopPath').value,
+      jsxPath: document.getElementById('jsxPath').value,
+      outputDir: document.getElementById('outputDir').value,
+      rulesJsonPath: document.getElementById('rulesJsonPath').value
+    };
+    const r = await ipcRenderer.invoke('save-config', cfg);
+    if (r && r.success) log('配置保存成功', 'success');
+    else log(`配置保存失败: ${r && r.error}`, 'error');
+  });
+
+  document.getElementById('runBtn').addEventListener('click', async () => {
+    const cfg = {
+      inputDir: document.getElementById('inputDir').value,
+      photoshopPath: document.getElementById('photoshopPath').value,
+      jsxPath: document.getElementById('jsxPath').value,
+      outputDir: document.getElementById('outputDir').value,
+      rulesJsonPath: document.getElementById('rulesJsonPath').value
     };
     if (!cfg.inputDir || !cfg.photoshopPath || !cfg.jsxPath || !cfg.outputDir) {
-      els.log.textContent += '请先完成所有必要配置\n';
+      log('请先完成所有必要配置：Photoshop.exe、JSX脚本、输入目录、输出目录', 'error');
       return;
     }
-    els.status.textContent = '正在运行批处理...';
+    setStatus('正在运行批处理...');
+    log('开始批处理任务...');
     const r = await ipcRenderer.invoke('run-batch', cfg);
-    if (r && r.success) { els.status.textContent = '批处理完成'; els.log.textContent += '批处理完成\n'; }
-    else { els.status.textContent = '批处理失败'; els.log.textContent += `批处理失败: ${r && r.error}\n`; }
+    if (r && r.success) { setStatus('批处理完成'); log('批处理任务完成', 'success'); }
+    else { setStatus('批处理失败'); log(`批处理失败: ${r && r.error}`, 'error'); }
   });
 
   // 读取配置
-  (async () => {
+  try {
     const cfg = await ipcRenderer.invoke('read-config');
-    if (cfg) {
-      ['inputDir','photoshopPath','jsxPath','outputDir','rulesJsonPath'].forEach(k => { if (cfg[k]) { els[k].value = cfg[k]; } });
-    }
-    els.status.textContent = '就绪';
-  })();
-});
-// ... existing code ...
+    ['inputDir','photoshopPath','jsxPath','outputDir','rulesJsonPath'].forEach(k => {
+      if (cfg && cfg[k]) { const el = document.getElementById(k); if (el) el.value = cfg[k]; }
+    });
+  } catch (e) {
+    log(`读取配置失败: ${e.message}`, 'error');
+  }
+
+  setStatus('就绪');
+  log('渲染进程初始化完成', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', init);
