@@ -52,8 +52,8 @@
     <div class="header-inner">
       <div class="brand">设计工坊 · Photoshop 批量运行</div>
       <nav class="menu">
-        <button class="btn secondary" onclick="openSettings()">配置</button>
-        <button class="btn primary" onclick="run()">开始运行</button>
+        <button class="btn secondary" id="settingsBtn">配置</button>
+        <button class="btn primary" id="runBtn">开始运行</button>
       </nav>
     </div>
   </header>
@@ -64,7 +64,8 @@
       <div class="row">
         <div>
           <label>输入目录</label>
-          <input id="inputDir" type="text" placeholder="选择包含图片的目录" />
+          <input id="inputDir" type="text" placeholder="选择包含图片的目录" readonly />
+          <button class="btn secondary" id="selectInputDir" style="margin-top:8px;">浏览</button>
         </div>
       </div>
     </section>
@@ -76,33 +77,44 @@
   </main>
 
   <div id="settingsModal" class="modal" aria-hidden="true">
-    <div class="modal-backdrop" onclick="closeSettings()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-content">
       <div class="modal-header">
         <div class="modal-title">运行配置</div>
-        <button class="btn secondary" onclick="closeSettings()">完成</button>
+        <button class="btn secondary" id="closeSettings">完成</button>
       </div>
       <div class="row">
         <div>
           <label>Photoshop.exe 路径</label>
           <input id="photoshopPath" type="text" placeholder="如 C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe" />
+          <button class="btn secondary" id="selectPhotoshopPath" style="margin-top:8px;">浏览</button>
         </div>
         <div>
           <label>JSX 脚本路径</label>
           <input id="jsxPath" type="text" placeholder="如 D:\scripts\batch.jsx" />
+          <button class="btn secondary" id="selectJsxFile" style="margin-top:8px;">浏览</button>
         </div>
       </div>
       <div class="row">
         <div>
           <label>输出目录</label>
           <input id="outputDir" type="text" placeholder="处理后的图片保存目录" />
+          <button class="btn secondary" id="selectOutputDir" style="margin-top:8px;">浏览</button>
         </div>
         <div>
           <label>规则 JSON（可选）</label>
           <input id="rulesJsonPath" type="text" placeholder="D:\rules.json" />
+          <button class="btn secondary" id="selectRulesJson" style="margin-top:8px;">浏览</button>
+        </div>
+      </div>
+      <div class="row">
+        <div style="grid-column: 1 / -1;">
+          <button class="btn primary" id="saveConfig">保存配置</button>
         </div>
       </div>
     </div>
   </div>
+
+  <script src="renderer.js"></script>
 </body>
 </html>
