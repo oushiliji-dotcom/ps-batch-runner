@@ -3,32 +3,41 @@
   "version": "0.1.0",
   "private": true,
   "description": "本地 Windows 用 Photoshop JSX 批量脚本运行工具（含简易Web UI）",
-  "main": "server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "build:win": "pkg server.js --targets node18-win-x64 --output dist/PSBatchRunner.exe",
+    "start": "electron .",
+    "build:win": "electron-builder --win",
     "build": "npm run build:win",
     "installer:win": "iscc installer.iss"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "electron": "^27.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "pkg": "^5.8.1"
+    "electron-builder": "^24.6.4"
   },
-  "pkg": {
-    "assets": [
-      "web/index.html",
-      "jsx/batch-template.jsx",
+  "build": {
+    "appId": "com.psbatchrunner.app",
+    "productName": "PS Batch Runner",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "web/**/*",
+      "jsx/**/*",
       "config.json"
     ],
-    "outputPath": "dist",
-    "targets": [
-      "node18-win-x64"
-    ]
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
