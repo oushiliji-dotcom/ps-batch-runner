@@ -37,7 +37,13 @@ jobs:
           Write-Host "✓ PSBatchRunner.exe created successfully"
           Get-Item "dist/PSBatchRunner.exe" | Select-Object Name, Length, LastWriteTime
         } else {
-          Write-Error "❌ PSBatchRunner.exe was not created"
+          Write-Host "❌ PSBatchRunner.exe was not created"
+          Write-Host "Checking dist directory contents:"
+          if (Test-Path "dist") {
+            Get-ChildItem "dist" -Force
+          } else {
+            Write-Host "dist directory does not exist"
+          }
           exit 1
         }
       shell: powershell
@@ -49,53 +55,15 @@ jobs:
         Write-Host "Inno Setup installation completed"
       shell: powershell
     
-    - name: Verify Inno Setup installation
-      run: |
-        $innoPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-        if (Test-Path $innoPath) {
-          Write-Host "✓ Inno Setup found at: $innoPath"
-          & $innoPath /? | Select-Object -First 3
-        } else {
-          Write-Error "❌ Inno Setup not found at expected path: $innoPath"
-          Get-ChildItem "C:\Program Files (x86)" -Filter "*Inno*" -Directory -ErrorAction SilentlyContinue
-          exit 1
-        }
-      shell: powershell
-    
     - name: Build installer
       run: |
         $innoPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-        $scriptPath = "installer.iss"
-        
         Write-Host "Building installer with Inno Setup..."
-        Write-Host "Script path: $scriptPath"
-        Write-Host "Inno Setup path: $innoPath"
-        
-        if (Test-Path $scriptPath) {
-          Write-Host "✓ Installer script found"
-        } else {
-          Write-Error "❌ Installer script not found: $scriptPath"
-          exit 1
-        }
-        
-        & $innoPath $scriptPath
-        
+        & $innoPath "installer.iss"
         if ($LASTEXITCODE -eq 0) {
           Write-Host "✓ Installer built successfully"
         } else {
-          Write-Error "❌ Installer build failed with exit code: $LASTEXITCODE"
-          exit 1
-        }
-      shell: powershell
-    
-    - name: Verify installer was created
-      run: |
-        if (Test-Path "dist/PSBatchRunner-Setup.exe") {
-          Write-Host "✓ Installer created successfully"
-          Get-Item "dist/PSBatchRunner-Setup.exe" | Select-Object Name, Length, LastWriteTime
-        } else {
-          Write-Error "❌ Installer was not created"
-          Get-ChildItem "dist" -ErrorAction SilentlyContinue
+          Write-Host "❌ Installer build failed with exit code: $LASTEXITCODE"
           exit 1
         }
       shell: powershell
@@ -108,3 +76,4 @@ jobs:
           dist/PSBatchRunner.exe
           dist/PSBatchRunner-Setup.exe
         retention-days: 30
+      if: always()
