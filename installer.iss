@@ -23,6 +23,7 @@ DisableProgramGroupPage=yes
 WizardStyle=modern
 
 [Languages]
+Name: "chinesesimplified"; MessagesFile: "compiler:Languages/ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
@@ -39,6 +40,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "额外任务"; Flags: unchecked
 
 [Run]
-; 安装完成后可选立即启动服务并打开浏览器
+; 安装完成后启动 Electron 桌面应用
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
-Filename: "{cmd}"; Parameters: "/C start http://localhost:3017/"; Flags: runhidden postinstall skipifsilent
