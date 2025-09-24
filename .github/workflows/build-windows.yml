@@ -63,12 +63,12 @@ jobs:
         
         Write-Host "Checking for executable:"
         if (Test-Path "dist/PSBatchRunner.exe") {
-          Write-Host "✓ PSBatchRunner.exe created successfully"
+          Write-Host "SUCCESS: PSBatchRunner.exe created successfully"
           $file = Get-Item "dist/PSBatchRunner.exe"
           Write-Host "File size: $($file.Length) bytes"
           Write-Host "Created: $($file.CreationTime)"
         } else {
-          Write-Host "❌ PSBatchRunner.exe was not created"
+          Write-Host "ERROR: PSBatchRunner.exe was not created"
           Write-Host "Checking current directory:"
           Get-ChildItem -Force
           Write-Host "Checking for any .exe files:"
@@ -91,18 +91,18 @@ jobs:
         Write-Host "Inno Setup path: $innoPath"
         
         if (Test-Path $innoPath) {
-          Write-Host "✓ Inno Setup found"
+          Write-Host "SUCCESS: Inno Setup found"
         } else {
-          Write-Host "❌ Inno Setup not found, searching..."
+          Write-Host "ERROR: Inno Setup not found, searching..."
           Get-ChildItem "C:\Program Files (x86)" -Filter "*Inno*" -Directory -ErrorAction SilentlyContinue
         }
         
         & $innoPath "installer.iss"
         
         if ($LASTEXITCODE -eq 0) {
-          Write-Host "✓ Installer built successfully"
+          Write-Host "SUCCESS: Installer built successfully"
         } else {
-          Write-Host "❌ Installer build failed with exit code: $LASTEXITCODE"
+          Write-Host "ERROR: Installer build failed with exit code: $LASTEXITCODE"
           exit 1
         }
       shell: powershell
@@ -111,12 +111,12 @@ jobs:
       run: |
         Write-Host "Final verification of build outputs:"
         if (Test-Path "dist/PSBatchRunner.exe") {
-          Write-Host "✓ PSBatchRunner.exe exists"
+          Write-Host "SUCCESS: PSBatchRunner.exe exists"
           Get-Item "dist/PSBatchRunner.exe" | Format-List Name, Length, LastWriteTime
         }
         
         if (Test-Path "dist/PSBatchRunner-Setup.exe") {
-          Write-Host "✓ PSBatchRunner-Setup.exe exists"
+          Write-Host "SUCCESS: PSBatchRunner-Setup.exe exists"
           Get-Item "dist/PSBatchRunner-Setup.exe" | Format-List Name, Length, LastWriteTime
         }
         
