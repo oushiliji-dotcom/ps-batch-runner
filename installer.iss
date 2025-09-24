@@ -27,9 +27,9 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages/ChineseSimplified.i
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; 仅需安装编译后的 exe（资源已由 pkg 打包进入 exe）
+; 复制打包产物（可执行文件）
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-; 同时安装可外部引用的 JSX 模板，便于在界面中直接选择
+; 附带 JSX 模板，安装到程序目录便于选择
 Source: "jsx\*"; DestDir: "{app}\jsx"; Flags: recursesubdirs ignoreversion
 
 [Icons]
@@ -40,5 +40,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "额外任务"; Flags: unchecked
 
 [Run]
-; 安装完成后启动 Electron 桌面应用
-Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+; 安装完成后直接启动应用（Electron 桌面版）
+Filename: "{app}\{#MyAppExeName}"; Description: "启动应用"; Flags: nowait postinstall skipifsilent
