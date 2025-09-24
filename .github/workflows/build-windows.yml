@@ -25,25 +25,54 @@ jobs:
       run: npm ci
     
     - name: Create dist directory
-      run: mkdir -p dist
-      shell: bash
-    
-    - name: Build Windows executable
-      run: npm run build:win
-    
-    - name: Verify executable was created
       run: |
+        if (!(Test-Path "dist")) {
+          New-Item -ItemType Directory -Path "dist" -Force
+          Write-Host "Created dist directory"
+        }
+        Write-Host "Current directory contents:"
+        Get-ChildItem -Force
+      shell: powershell
+    
+    - name: Debug pkg installation
+      run: |
+        Write-Host "Checking pkg installation..."
+        npm list pkg
+        Write-Host "Node version:"
+        node --version
+        Write-Host "NPM version:"
+        npm --version
+      shell: powershell
+    
+    - name: Build Windows executable with verbose output
+      run: |
+        Write-Host "Starting pkg build..."
+        Write-Host "Command: pkg server.js --targets node18-win-x64 --output dist/PSBatchRunner.exe"
+        npx pkg server.js --targets node18-win-x64 --output dist/PSBatchRunner.exe --verbose
+        Write-Host "Build command completed"
+      shell: powershell
+    
+    - name: Check build results
+      run: |
+        Write-Host "Checking dist directory after build:"
+        if (Test-Path "dist") {
+          Get-ChildItem "dist" -Force | Format-Table Name, Length, LastWriteTime
+        } else {
+          Write-Host "dist directory does not exist"
+        }
+        
+        Write-Host "Checking for executable:"
         if (Test-Path "dist/PSBatchRunner.exe") {
           Write-Host "✓ PSBatchRunner.exe created successfully"
-          Get-Item "dist/PSBatchRunner.exe" | Select-Object Name, Length, LastWriteTime
+          $file = Get-Item "dist/PSBatchRunner.exe"
+          Write-Host "File size: $($file.Length) bytes"
+          Write-Host "Created: $($file.CreationTime)"
         } else {
           Write-Host "❌ PSBatchRunner.exe was not created"
-          Write-Host "Checking dist directory contents:"
-          if (Test-Path "dist") {
-            Get-ChildItem "dist" -Force
-          } else {
-            Write-Host "dist directory does not exist"
-          }
+          Write-Host "Checking current directory:"
+          Get-ChildItem -Force
+          Write-Host "Checking for any .exe files:"
+          Get-ChildItem -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue
           exit 1
         }
       shell: powershell
@@ -59,12 +88,41 @@ jobs:
       run: |
         $innoPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
         Write-Host "Building installer with Inno Setup..."
+        Write-Host "Inno Setup path: $innoPath"
+        
+        if (Test-Path $innoPath) {
+          Write-Host "✓ Inno Setup found"
+        } else {
+          Write-Host "❌ Inno Setup not found, searching..."
+          Get-ChildItem "C:\Program Files (x86)" -Filter "*Inno*" -Directory -ErrorAction SilentlyContinue
+        }
+        
         & $innoPath "installer.iss"
+        
         if ($LASTEXITCODE -eq 0) {
           Write-Host "✓ Installer built successfully"
         } else {
           Write-Host "❌ Installer build failed with exit code: $LASTEXITCODE"
           exit 1
+        }
+      shell: powershell
+    
+    - name: Verify final outputs
+      run: |
+        Write-Host "Final verification of build outputs:"
+        if (Test-Path "dist/PSBatchRunner.exe") {
+          Write-Host "✓ PSBatchRunner.exe exists"
+          Get-Item "dist/PSBatchRunner.exe" | Format-List Name, Length, LastWriteTime
+        }
+        
+        if (Test-Path "dist/PSBatchRunner-Setup.exe") {
+          Write-Host "✓ PSBatchRunner-Setup.exe exists"
+          Get-Item "dist/PSBatchRunner-Setup.exe" | Format-List Name, Length, LastWriteTime
+        }
+        
+        Write-Host "All files in dist directory:"
+        if (Test-Path "dist") {
+          Get-ChildItem "dist" -Force
         }
       shell: powershell
     
