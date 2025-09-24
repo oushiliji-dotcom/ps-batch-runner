@@ -7,7 +7,7 @@
 #define MyAppExeName "PSBatchRunner.exe"
 
 [Setup]
-AppId={{A2A4E3B5-12B1-4F9A-9F6E-2D6E7A2F10A1}
+AppId={{A2A4E3B5-12B1-4F9A-9F6E-2D6E7A2F10A1}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
