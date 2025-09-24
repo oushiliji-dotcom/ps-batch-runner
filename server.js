@@ -26,7 +26,20 @@ function readConfig() {
 function writeConfig(cfg) { try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); } catch (e) { console.error('写入配置失败:', e); } }
 
 // 静态页面（可从打包资源快照中读取）
-app.use('/', express.static(path.join(__dirname, 'web')));
+const webDir = path.join(__dirname, 'web');
+console.log('=== PS Batch Runner Debug Info ===');
+console.log('isPkg:', isPkg);
+console.log('__dirname:', __dirname);
+console.log('webDir:', webDir);
+console.log('webDir exists:', fs.existsSync(webDir));
+if (fs.existsSync(webDir)) {
+  console.log('webDir contents:', fs.readdirSync(webDir));
+} else {
+  console.log('ERROR: webDir does not exist!');
+}
+console.log('================================');
+
+app.use('/', express.static(webDir));
 
 // 获取和保存配置
 app.get('/api/config', (req, res) => res.json(readConfig()));
