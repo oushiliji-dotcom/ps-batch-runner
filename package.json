@@ -22,8 +22,8 @@
   },
   "pkg": {
     "assets": [
-      "web/**/*",
-      "jsx/**/*",
+      "web/index.html",
+      "jsx/batch-template.jsx",
       "config.json"
     ],
     "outputPath": "dist",
