@@ -1,76 +1,121 @@
-<!-- 顶部导航：把 onclick 改为 id -->
-<header class="header">
-  <div class="header-inner">
-    <div class="brand">设计工坊 · Photoshop 批量运行</div>
-    <nav class="menu">
-      // ... existing code ...
-      <button class="btn secondary" id="settingsBtn">配置</button>
-      <button class="btn primary" id="runBtn">开始运行</button>
-      // ... existing code ...
-    </nav>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设计工坊 · Photoshop 批量运行</title>
+  <style>
+    :root{
+      --bg:#F5F7FA; --header-bg:#242424; --header-border:#383838; --panel-bg:#FFFFFF; --panel-border:#E5E5E5;
+      --text:#1F1F1F; --muted:#666666; --accent:#1f6feb; --radius:12px; --gap:24px; --pad:24px;
+      --pad-x:28px; --pad-y:20px; --col-gap: var(--pad-x);
+      --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(149,157,165,.2);
+    }
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
+    .header{position:sticky;top:0;z-index:10;background:var(--header-bg);border-bottom:1px solid var(--header-border)}
+    .header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--gap);padding:12px var(--pad);color:#fff}
+    .brand{font-weight:600;letter-spacing:.3px}
+    .menu{display:flex;gap:12px;align-items:center}
+    .content{max-width:1200px;margin:0 auto;padding:var(--pad)}
+    .panel{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:var(--pad-y) var(--pad-x);margin:12px 0;box-shadow:var(--shadow-card)}
+    .panel h2{margin:0 0 12px 0;font-size:18px;font-weight:600;letter-spacing:.2px}
+    .row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--col-gap);row-gap:14px}
+    .row + .row{margin-top:16px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type=text]{width:100%;padding:10px 12px;border-radius:3px;border:1px solid #D0D7DE;background:#fff;color:var(--text);box-sizing:border-box}
+    input[type=text]::placeholder{color:#9aa4b2}
+    input[type=text]:hover{border-color:#bcc5d1}
+    input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
+    .btn{border:0;border-radius:20px;padding:10px 16px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.secondary{background:#2f353d;color:#fff}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .status{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .log{white-space:pre-wrap;background:#0b0f14;color:#c9d1d9;border-radius:8px;border:1px solid #30363d;padding:10px;height:220px;overflow:auto}
+    @media (max-width: 920px){
+      .row{grid-template-columns:1fr}
+      .content{padding:12px}
+      .header-inner{padding:12px}
+    }
+    .modal{position:fixed;inset:0;display:none;z-index:100}
+    .modal[aria-hidden="false"]{display:block}
+    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+    .modal-content{position:relative;max-width:720px;margin:80px auto;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:var(--pad-y) var(--pad-x)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .modal-title{font-size:18px;font-weight:600}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">设计工坊 · Photoshop 批量运行</div>
+      <nav class="menu">
+        <button class="btn secondary" id="settingsBtn">配置</button>
+        <button class="btn primary" id="runBtn">开始运行</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <h2>输入目录</h2>
+      <div class="row">
+        <div>
+          <label>输入目录</label>
+          <input id="inputDir" type="text" placeholder="选择包含图片的目录" readonly />
+          <button class="btn secondary" id="selectInputDir" style="margin-top:8px;">浏览</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>处理进度与日志</h2>
+      <div id="status" class="status">初始化中...</div>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <div id="settingsModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">运行配置</div>
+        <button class="btn secondary" id="closeSettings">完成</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>Photoshop.exe 路径</label>
+          <input id="photoshopPath" type="text" placeholder="如 C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe" />
+          <button class="btn secondary" id="selectPhotoshopPath" style="margin-top:8px;">浏览</button>
+        </div>
+        <div>
+          <label>JSX 脚本路径</label>
+          <input id="jsxPath" type="text" placeholder="如 D:\scripts\batch.jsx" />
+          <button class="btn secondary" id="selectJsxFile" style="margin-top:8px;">浏览</button>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>输出目录</label>
+          <input id="outputDir" type="text" placeholder="处理后的图片保存目录" />
+          <button class="btn secondary" id="selectOutputDir" style="margin-top:8px;">浏览</button>
+        </div>
+        <div>
+          <label>规则 JSON（可选）</label>
+          <input id="rulesJsonPath" type="text" placeholder="D:\rules.json" />
+          <button class="btn secondary" id="selectRulesJson" style="margin-top:8px;">浏览</button>
+        </div>
+      </div>
+      <div class="row">
+        <div style="grid-column: 1 / -1;">
+          <button class="btn primary" id="saveConfig">保存配置</button>
+        </div>
+      </div>
+    </div>
   </div>
-</header>
 
-<main class="content">
-  <section class="panel">
-    <h2>输入目录</h2>
-    <div class="row">
-      <div>
-        // ... existing code ...
-        <label>输入目录</label>
-        <input id="inputDir" type="text" placeholder="选择包含图片的目录" readonly />
-        <button class="btn secondary" id="selectInputDir" style="margin-top:8px;">浏览</button>
-        // ... existing code ...
-      </div>
-    </div>
-  </section>
-  // ... existing code ...
-</main>
-
-<!-- 设置弹窗：把“完成”按钮改为 id，新增浏览按钮 id -->
-<div id="settingsModal" class="modal" aria-hidden="true">
-  <div class="modal-backdrop"></div>
-  <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title">运行配置</div>
-      // ... existing code ...
-      <button class="btn secondary" id="closeSettings">完成</button>
-      // ... existing code ...
-    </div>
-    <div class="row">
-      <div>
-        <label>Photoshop.exe 路径</label>
-        <input id="photoshopPath" type="text" placeholder="如 C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe" />
-        <button class="btn secondary" id="selectPhotoshopPath" style="margin-top:8px;">浏览</button>
-      </div>
-      <div>
-        <label>JSX 脚本路径</label>
-        <input id="jsxPath" type="text" placeholder="如 D:\scripts\batch.jsx" />
-        <button class="btn secondary" id="selectJsxFile" style="margin-top:8px;">浏览</button>
-      </div>
-    </div>
-    <div class="row">
-      <div>
-        <label>输出目录</label>
-        <input id="outputDir" type="text" placeholder="处理后的图片保存目录" />
-        <button class="btn secondary" id="selectOutputDir" style="margin-top:8px;">浏览</button>
-      </div>
-      <div>
-        <label>规则 JSON（可选）</label>
-        <input id="rulesJsonPath" type="text" placeholder="D:\rules.json" />
-        <button class="btn secondary" id="selectRulesJson" style="margin-top:8px;">浏览</button>
-      </div>
-    </div>
-    <div class="row">
-      <div style="grid-column: 1 / -1;">
-        <button class="btn primary" id="saveConfig">保存配置</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 重要：删除整段旧的内联 <script>...</script> -->
-// ... existing code ...
-<script src="../renderer.js"></script>
+  <!-- 只保留这一句：从根目录加载渲染脚本 -->
+  <script src="../renderer.js"></script>
 </body>
 </html>
