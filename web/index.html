@@ -1,47 +1,121 @@
-<!-- 该片段属于页面主体与脚本区域 -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设计工坊 · Photoshop 批量运行</title>
+  <style>
+    :root{--bg:#0f172a;--panel:#111827;--fg:#e5e7eb;--muted:#9ca3af;--primary:#2563eb;--secondary:#374151;--ok:#10b981;--err:#ef4444;}
+    html,body{height:100%;margin:0;background:#0b1220;color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;}
+    .header{background:#0f172a;border-bottom:1px solid #1f2937;}
+    .header-inner{max-width:1080px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700}
+    .menu .btn{margin-left:8px}
+    .content{max-width:1080px;margin:16px auto;padding:0 16px;display:grid;grid-template-columns:1fr;}
+    .panel{background:#0f172a;border:1px solid #1f2937;border-radius:8px;margin-bottom:16px;padding:16px;}
+    h2{margin:0 0 12px 0;font-size:16px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input{width:100%;box-sizing:border-box;background:#0b1220;color:var(--fg);border:1px solid #293548;border-radius:6px;padding:8px 10px;outline:none}
+    input:focus{border-color:#365bb1;box-shadow:0 0 0 2px rgba(37,99,235,.2)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px}
+    .btn{background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer}
+    .btn.secondary{background:var(--secondary)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .status{padding:8px 10px;border-radius:6px;background:#0b1220;border:1px solid #293548;color:#9dd6a8;margin-bottom:10px}
+    .log{height:220px;overflow:auto;white-space:pre-wrap;background:#0b1220;border:1px solid #293548;border-radius:6px;padding:8px 10px}
+    .actions{display:flex;gap:8px;align-items:center}
+    .modal{position:fixed;inset:0;display:none}
+    .modal[aria-hidden="false"]{display:block}
+    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+    .modal-content{position:absolute;right:16px;top:16px;width:560px;max-width:calc(100% - 32px);background:#0f172a;border:1px solid #1f2937;border-radius:10px;overflow:hidden}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #1f2937}
+    .modal-title{font-weight:600}
+    .modal-body{padding:16px}
+    @media (max-width:860px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
 <body>
-  <!-- 顶部导航 -->
   <header class="header">
-    // ... existing code ...
+    <div class="header-inner">
+      <div class="brand">设计工坊 · Photoshop 批量运行</div>
+      <nav class="menu actions">
+        <button class="btn secondary" id="openSettingsBtn">配置</button>
+        <button class="btn" id="runBtn">开始运行</button>
+      </nav>
+    </div>
   </header>
 
-  <!-- 主内容 -->
   <main class="content">
     <section class="panel">
       <h2>输入目录</h2>
       <div class="row">
         <div>
-          <label>输入目录</label>
-          <input id="inputDir" type="text" placeholder="D\\:input" />
+          <label>输入目录（包含图片或若干 SKU 前缀子文件夹）</label>
+          <input id="inputDir" type="text" placeholder="如 D:\\input" />
+        </div>
+        <div>
+          <label>代码文件夹（当输入目录未命中 SKU 前缀时在此继续查找）</label>
+          <input id="codeDir" type="text" placeholder="如 D:\\code-folder" />
         </div>
       </div>
-      <!-- 新增：代码文件夹（当输入目录不含SKU前缀时，会在这里继续查找） -->
-      <div class="row">
-        <div>
-          <label>代码文件夹</label>
-          <input id="codeDir" type="text" placeholder="D\\:code-folder" />
-        </div>
+      <div class="actions">
+        <button class="btn" id="runBtn2">开始运行</button>
       </div>
     </section>
-    // ... existing code ...
+
+    <section class="panel">
+      <h2>处理进度与日志</h2>
+      <div id="status" class="status">就绪</div>
+      <div id="log" class="log"></div>
+    </section>
   </main>
 
-  // ... existing code ...
+  <div id="settingsModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">运行配置</div>
+        <button class="btn secondary" id="closeSettingsBtn">完成</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div>
+            <label>Photoshop.exe 路径</label>
+            <input id="photoshopPath" type="text" placeholder="如 C:\\Program Files\\Adobe\\Adobe Photoshop 2024\\Photoshop.exe" />
+          </div>
+          <div>
+            <label>JSX 脚本路径</label>
+            <input id="jsxPath" type="text" placeholder="请选择 jsx\\batch-template.jsx" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>输出目录</label>
+            <input id="outputDir" type="text" placeholder="如 D:\\output" />
+          </div>
+          <div>
+            <label>规则 JSON（可选）</label>
+            <input id="rulesJsonPath" type="text" placeholder="如 D:\\rules.json" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const $id = (x)=>document.getElementById(x);
 
-    document.addEventListener('DOMContentLoaded', ()=>{
-      load();
-      bindAutoSave();
-    });
+    function setStatus(t){ const el=$id('status'); if(el) el.textContent=t; }
+    function log(t){ const el=$id('log'); if(el){ el.textContent += (t+'\\n'); el.scrollTop = el.scrollHeight; } }
 
     function load(){
       const saved = JSON.parse(localStorage.getItem('ps_config')||'{}');
-      ['photoshopPath','jsxPath','inputDir','outputDir','rulesJsonPath','codeDir'].forEach(k=>{ if(saved[k]){ const el=$id(k); if(el) el.value=saved[k]; } });
+      ['photoshopPath','jsxPath','inputDir','outputDir','rulesJsonPath','codeDir'].forEach(k=>{
+        if(saved[k]){ const el=$id(k); if(el) el.value=saved[k]; }
+      });
       setStatus('就绪');
     }
-
     function collectBody(){
       return {
         photoshopPath: ($id('photoshopPath').value||'').trim(),
@@ -49,35 +123,40 @@
         inputDir: ($id('inputDir').value||'').trim(),
         outputDir: ($id('outputDir').value||'').trim(),
         rulesJsonPath: ($id('rulesJsonPath').value||'').trim(),
-        // 新增：代码文件夹
         codeDir: ($id('codeDir').value||'').trim()
       };
     }
+    function save(){ localStorage.setItem('ps_config', JSON.stringify(collectBody())); }
 
-    function openSettings(){ const m=$id('settingsModal'); if(m) m.setAttribute('aria-hidden','false'); }
-    function closeSettings(){ const m=$id('settingsModal'); if(m) m.setAttribute('aria-hidden','true'); saveLocal(); }
+    function openSettings(){ $id('settingsModal').setAttribute('aria-hidden','false'); }
+    function closeSettings(){ save(); $id('settingsModal').setAttribute('aria-hidden','true'); }
 
-    function bindAutoSave(){
+    function bind(){
+      $id('openSettingsBtn').addEventListener('click', openSettings);
+      $id('closeSettingsBtn').addEventListener('click', closeSettings);
+      $id('settingsModal').querySelector('.modal-backdrop').addEventListener('click', closeSettings);
+
       ['photoshopPath','jsxPath','inputDir','outputDir','rulesJsonPath','codeDir'].forEach(k=>{
-        const el=$id(k); if(el){ el.addEventListener('change', saveLocal); el.addEventListener('blur', saveLocal); }
+        const el=$id(k); if(el){ el.addEventListener('change', save); el.addEventListener('blur', save); }
       });
-    }
-    function saveLocal(){ const body=collectBody(); localStorage.setItem('ps_config', JSON.stringify(body)); }
 
-    function run(){
-      const base = window.location.origin;
-      const body = collectBody();
-      setStatus('处理中…');
-      log('开始运行...');
-      fetch(base+'/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-        .then(r=>r.json()).then(j=>{
-          const ok = j && j.ok !== false && j.code === 0;
-          setStatus(ok ? '处理完成' : '处理失败');
-          log('完成, code='+(j.code==null?'N/A':j.code)+'\nSTDOUT:\n'+(j.stdout||'')+'\nSTDERR:\n'+(j.stderr||''));
-        }).catch(e=>{ setStatus('运行异常'); log('运行异常 '+e); });
+      const run = ()=>{
+        const base = window.location.origin;
+        const body = collectBody();
+        setStatus('处理中…');
+        log('开始运行...');
+        fetch(base+'/api/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+          .then(r=>r.json()).then(j=>{
+            const ok = j && j.ok !== false && j.code === 0;
+            setStatus(ok ? '处理完成' : '处理失败');
+            log('完成, code='+(j.code==null?'N/A':j.code)+'\\nSTDOUT:\\n'+(j.stdout||'')+'\\nSTDERR:\\n'+(j.stderr||''));
+          }).catch(e=>{ setStatus('运行异常'); log('运行异常 '+e); });
+      };
+      $id('runBtn').addEventListener('click', run);
+      $id('runBtn2').addEventListener('click', run);
     }
 
-    function setStatus(t){ const el=$id('status'); if(el) el.textContent = t; }
-    function log(t){ const el = $id('log'); if(el){ el.textContent += (t+'\n'); el.scrollTop = el.scrollHeight; } }
+    document.addEventListener('DOMContentLoaded',()=>{ load(); bind(); });
   </script>
 </body>
+</html>
