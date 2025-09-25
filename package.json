@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win",
+    "build:win": "electron-builder --win --publish=never",
     "build": "npm run build:win",
     "installer:win": "iscc installer.iss"
   },
@@ -41,7 +41,6 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    },
-    "publish": "never"
+    }
   }
 }
