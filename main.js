@@ -1,74 +1,102 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
+const http = require('http');
 
-let mainWindow;
-const DATA_DIR = path.join(app.getPath('userData'), 'ps-batch-runner');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const PORT = process.env.PORT || 3017;
+const URL = `http://localhost:${PORT}`;
 
-function ensureDir(p) { try { fs.mkdirSync(p, { recursive: true }); } catch {} }
-ensureDir(DATA_DIR);
+let mainWindow = null;
+
+// 防止 server.js 自动打开系统浏览器
+process.env.AUTO_OPEN = '0';
+// 尝试启动内置服务（express）
+try {
+  require(path.join(__dirname, 'server.js'));
+  // 如果 server.js 内部已经监听，会直接复用
+} catch (e) {
+  console.error('[main] 启动内置 server.js 失败:', e);
+}
+
+// 等待服务就绪
+function waitForServer(url, timeoutMs = 20000, intervalMs = 300) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const tryOnce = () => {
+      const req = http.get(url, res => {
+        // 任意 2xx/3xx 视为可用
+        if (res.statusCode && res.statusCode < 400) {
+          res.resume();
+          resolve();
+        } else {
+          res.resume();
+          if (Date.now() - start > timeoutMs) {
+            reject(new Error(`Server not ready, status=${res.statusCode}`));
+          } else {
+            setTimeout(tryOnce, intervalMs);
+          }
+        }
+      });
+      req.on('error', () => {
+        if (Date.now() - start > timeoutMs) reject(new Error('Server not ready (conn error)'));
+        else setTimeout(tryOnce, intervalMs);
+      });
+      req.end();
+    };
+    tryOnce();
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1100,
+    height: 760,
+    show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true
+      nodeIntegration: false,
+      contextIsolation: true,
+      devTools: true
     }
   });
-  mainWindow.loadFile(path.join(__dirname, 'web', 'index.html'));
-  // 如需调试可打开：mainWindow.webContents.openDevTools();
+
+  waitForServer(URL)
+    .then(() => {
+      mainWindow.loadURL(URL);
+      mainWindow.once('ready-to-show', () => mainWindow && mainWindow.show());
+      // 如需调试请取消注释
+      // mainWindow.webContents.openDevTools({ mode: 'detach' });
+    })
+    .catch(err => {
+      console.error('[main] 服务未就绪:', err);
+      // 显示一个简单错误页，避免纯白
+      const html = `<html><body style="font-family:system-ui;padding:24px">
+        <h2>服务启动失败</h2>
+        <p>未能连接到 ${URL}</p>
+        <pre>${String(err)}</pre>
+      </body></html>`;
+      mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+      mainWindow.show();
+    });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-
-// IPC：读取/保存配置
-ipcMain.handle('read-config', async () => {
-  try { return fs.existsSync(CONFIG_FILE) ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) : {}; }
-  catch (e) { return {}; }
-});
-ipcMain.handle('save-config', async (_e, cfg) => {
-  try { fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2)); return { success: true }; }
-  catch (e) { return { success: false, error: e.message }; }
-});
-
-// 选择目录/文件
-ipcMain.handle('select-directory', async () => {
-  const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
-  return r.canceled ? null : r.filePaths[0];
-});
-ipcMain.handle('select-file', async (_e, options = {}) => {
-  const r = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    filters: options.filters || []
-  });
-  return r.canceled ? null : r.filePaths[0];
-});
-
-// 运行批处理（调用 Photoshop 执行 JSX）
-ipcMain.handle('run-batch', async (_e, cfg) => {
-  return new Promise(resolve => {
-    try {
-      const { photoshopPath, jsxPath, inputDir, outputDir, rulesJsonPath } = cfg || {};
-      if (!photoshopPath || !jsxPath || !inputDir || !outputDir) {
-        return resolve({ success: false, error: '缺少必要参数' });
-      }
-      const env = Object.assign({}, process.env, {
-        PS_INPUT_DIR: inputDir,
-        PS_OUTPUT_DIR: outputDir,
-        PS_RULES_JSON: rulesJsonPath || ''
-      });
-      const child = spawn(photoshopPath, [jsxPath], { env, windowsHide: false });
-      child.on('error', err => resolve({ success: false, error: String(err) }));
-      child.on('close', code => resolve({ success: code === 0, code }));
-    } catch (e) {
-      resolve({ success: false, error: String(e) });
+// 单实例
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
-});
+
+  app.whenReady().then(createWindow);
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+}
