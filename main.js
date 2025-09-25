@@ -1,65 +1,103 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const http = require('http');
-
-const PORT = process.env.PORT || 3017;
-const URL = `http://localhost:${PORT}`;
+const fs = require('fs');
+const os = require('os');
+const { spawn } = require('child_process');
 
 let mainWindow = null;
 
-// 阻止 server.js 自动打开系统浏览器
-process.env.AUTO_OPEN = '0';
-// 启动内置服务
-try {
-  require(path.join(__dirname, 'server.js'));
-} catch (e) {
-  console.error('[main] 启动内置 server.js 遇到异常:', e);
+// 配置文件路径
+const userHome = os.homedir();
+const appDataRoot = process.platform === 'win32'
+  ? (process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming'))
+  : path.join(userHome, '.config');
+const dataDir = path.join(appDataRoot, 'ps-batch-runner');
+const CONFIG_PATH = path.join(dataDir, 'config.json');
+
+// 确保配置目录存在
+if (!fs.existsSync(dataDir)) {
+  try { fs.mkdirSync(dataDir, { recursive: true }); } catch (_) {}
 }
 
-function waitForServer(url, timeoutMs = 20000, intervalMs = 300) {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    const tryOnce = () => {
-      const req = http.get(url, res => {
-        if (res.statusCode && res.statusCode < 400) { res.resume(); resolve(); }
-        else { res.resume(); Date.now() - start > timeoutMs ? reject(new Error(`Server not ready, status=${res.statusCode}`)) : setTimeout(tryOnce, intervalMs); }
-      });
-      req.on('error', () => { Date.now() - start > timeoutMs ? reject(new Error('Server not ready (conn error)')) : setTimeout(tryOnce, intervalMs); });
-      req.end();
-    };
-    tryOnce();
-  });
+// 配置读写函数
+function readConfig() {
+  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
 }
+
+function writeConfig(cfg) {
+  try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); } catch (e) { console.error('写入配置失败:', e); }
+}
+
+// IPC 处理器
+ipcMain.handle('get-config', () => readConfig());
+ipcMain.handle('save-config', (event, config) => { writeConfig(config); return { ok: true }; });
+
+ipcMain.handle('run-photoshop', async (event, config) => {
+  const { photoshopPath, jsxPath, inputDir, outputDir, rulesJsonPath } = config;
+  
+  if (!photoshopPath || !jsxPath || !inputDir || !outputDir) {
+    return { ok: false, msg: '缺少必要参数：photoshopPath / jsxPath / inputDir / outputDir' };
+  }
+
+  return new Promise((resolve) => {
+    const env = Object.assign({}, process.env, {
+      PS_INPUT_DIR: inputDir,
+      PS_OUTPUT_DIR: outputDir,
+      PS_RULES_JSON: rulesJsonPath || '',
+    });
+
+    const child = spawn(photoshopPath, [jsxPath], {
+      env,
+      windowsHide: false,
+      detached: false,
+    });
+
+    let stdout = '', stderr = '';
+    child.stdout && child.stdout.on('data', d => stdout += d.toString());
+    child.stderr && child.stderr.on('data', d => stderr += d.toString());
+
+    child.on('error', (err) => {
+      resolve({ ok: false, error: String(err), stdout, stderr });
+    });
+
+    child.on('close', (code) => {
+      resolve({ ok: code === 0, code, stdout, stderr });
+    });
+  });
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 760,
-    show: false,
-    webPreferences: { nodeIntegration: false, contextIsolation: true, devTools: true }
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
   });
 
-  waitForServer(URL)
-    .then(() => {
-      mainWindow.loadURL(URL);
-      mainWindow.once('ready-to-show', () => mainWindow && mainWindow.show());
-    })
-    .catch(err => {
-      console.error('[main] 等待服务失败:', err);
-      const html = `<html><body style="font-family:system-ui;padding:24px">
-        <h2>服务启动失败</h2><p>未能连接到 ${URL}</p><pre>${String(err)}</pre></body></html>`;
-      mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-      mainWindow.show();
-    });
-
+  mainWindow.loadFile(path.join(__dirname, 'web', 'index.html'));
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// 单实例
 const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
-else {
-  app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
   app.whenReady().then(createWindow);
-  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 }
