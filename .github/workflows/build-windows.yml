@@ -17,8 +17,9 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install dependencies (CI)
-        run: npm ci
+      # 关键修改：用 npm install 替代 npm ci，避免因 lock 文件不同步而失败
+      - name: Install dependencies
+        run: npm install
 
       - name: Build Electron app (Win)
         run: npm run build:win
