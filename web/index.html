@@ -1,31 +1,211 @@
-<script>
-  // ... existing code ...
-  const $id = (x)=>document.getElementById(x);
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设计工坊 · PS 批量运行</title>
+  <style>
+    :root{
+      --bg:#F5F7FA; --header-bg:#242424; --header-border:#383838; --panel-bg:#FFFFFF; --panel-border:#E5E5E5;
+      --text:#1F1F1F; --muted:#666666; --accent:#1f6feb; --radius:12px; --gap:24px; --pad:24px;
+      --pad-x:28px; --pad-y:20px; --col-gap: var(--pad-x);
+      --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(149,157,165,.2);
+    }
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
 
-  // 固定后端地址：若不是 http/https（比如从 file:// 或 Electron 打开），一律走本地服务
-  const BASE = (location.protocol === 'http:' || location.protocol === 'https:')
-    ? `${location.protocol}//${location.host}`
-    : 'http://localhost:3017';
+    .header{position:sticky;top:0;z-index:10;background:var(--header-bg);border-bottom:1px solid var(--header-border)}
+    .header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--gap);padding:12px var(--pad);color:#fff}
+    .brand{font-weight:600;letter-spacing:.3px}
+    .menu{display:flex;gap:12px;align-items:center}
 
-  // ... existing code ...
+    .content{max-width:1200px;margin:0 auto;padding:var(--pad)}
+    .panel{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:var(--pad-y) var(--pad-x);margin:12px 0;box-shadow:var(--shadow-card)}
+    .panel h2{margin:0 0 12px 0;font-size:18px;font-weight:600;letter-spacing:.2px}
 
-  function run(){
-    const body = collectBody();
-    setStatus('处理中…');
-    log('开始运行...');
-    // 统一用 BASE 调 /api/run，避免因 origin 变化导致 Failed to fetch
-    fetch(`${BASE}/api/run`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    })
-      .then(r=>r.json()).then(j=>{
-        const ok = j && j.ok !== false && j.code === 0;
+    .row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--col-gap);row-gap:14px}
+    .row + .row{margin-top:16px}
+
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type=text]{width:100%;padding:10px 12px;border-radius:3px;border:1px solid #D0D7DE;background:#fff;color:var(--text);box-sizing:border-box}
+    input[type=text]::placeholder{color:#9aa4b2}
+    input[type=text]:hover{border-color:#bcc5d1}
+    input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
+
+    .btn{border:0;border-radius:20px;padding:10px 16px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.secondary{background:#2f353d;color:#fff}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+
+    .status{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .log{white-space:pre-wrap;background:#0b0f14;color:#c9d1d9;border-radius:8px;border:1px solid #30363d;padding:10px;height:220px;overflow:auto}
+
+    @media (max-width: 920px){
+      .row{grid-template-columns:1fr}
+      .content{padding:12px}
+      .header-inner{padding:12px}
+    }
+
+    .modal{position:fixed;inset:0;display:none;z-index:100}
+    .modal[aria-hidden="false"]{display:block}
+    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+    .modal-content{position:relative;max-width:720px;margin:80px auto;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:var(--pad-y) var(--pad-x)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .modal-title{font-size:18px;font-weight:600}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">设计工坊 · Photoshop 批量运行</div>
+      <nav class="menu">
+        <button class="btn secondary" onclick="openSettings()">配置</button>
+        <button class="btn primary" onclick="run()">开始运行</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <h2>输入目录</h2>
+      <div class="row">
+        <div>
+          <label>输入目录</label>
+          <input id="inputDir" type="text" placeholder="D:\input" />
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>处理进度与日志</h2>
+      <div id="status" class="status">就绪</div>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <div id="settingsModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSettings()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">运行配置</div>
+        <button class="btn secondary" onclick="closeSettings()">完成</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>Photoshop.exe 路径</label>
+          <input id="photoshopPath" type="text" placeholder="C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe" />
+        </div>
+        <div>
+          <label>JSX 脚本路径</label>
+          <input id="jsxPath" type="text" placeholder="D:\scripts\batch.jsx" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>输出目录</label>
+          <input id="outputDir" type="text" placeholder="D:\output" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>规则 JSON（可选）</label>
+          <input id="rulesJsonPath" type="text" placeholder="D:\rules.json" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $id = (x) => document.getElementById(x);
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await load();
+      bindAutoSave();
+    });
+
+    async function load() {
+      try {
+        const saved = await window.electronAPI.getConfig();
+        ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+          if (saved[k]) {
+            const el = $id(k);
+            if (el) el.value = saved[k];
+          }
+        });
+        setStatus('就绪');
+      } catch (e) {
+        console.error('加载配置失败:', e);
+        setStatus('配置加载失败');
+      }
+    }
+
+    function collectBody() {
+      return {
+        photoshopPath: ($id('photoshopPath').value || '').trim(),
+        jsxPath: ($id('jsxPath').value || '').trim(),
+        inputDir: ($id('inputDir').value || '').trim(),
+        outputDir: ($id('outputDir').value || '').trim(),
+        rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
+      };
+    }
+
+    function openSettings() {
+      const m = $id('settingsModal');
+      if (m) m.setAttribute('aria-hidden', 'false');
+    }
+
+    async function closeSettings() {
+      const m = $id('settingsModal');
+      if (m) m.setAttribute('aria-hidden', 'true');
+      await saveConfig();
+    }
+
+    function bindAutoSave() {
+      ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+        const el = $id(k);
+        if (el) {
+          el.addEventListener('change', saveConfig);
+          el.addEventListener('blur', saveConfig);
+        }
+      });
+    }
+
+    async function saveConfig() {
+      try {
+        const body = collectBody();
+        await window.electronAPI.saveConfig(body);
+      } catch (e) {
+        console.error('保存配置失败:', e);
+      }
+    }
+
+    async function run() {
+      const body = collectBody();
+      setStatus('处理中…');
+      log('开始运行...');
+      
+      try {
+        const result = await window.electronAPI.runPhotoshop(body);
+        const ok = result && result.ok !== false && result.code === 0;
         setStatus(ok ? '处理完成' : '处理失败');
-        log('完成, code='+(j.code==null?'N/A':j.code)+'\nSTDOUT:\n'+(j.stdout||'')+'\nSTDERR:\n'+(j.stderr||''));
-      })
-      .catch(e=>{ setStatus('运行异常'); log('运行异常 '+e); });
-  }
+        log('完成, code=' + (result.code == null ? 'N/A' : result.code) + '\nSTDOUT:\n' + (result.stdout || '') + '\nSTDERR:\n' + (result.stderr || ''));
+      } catch (e) {
+        setStatus('运行异常');
+        log('运行异常 ' + e);
+      }
+    }
 
-  // ... existing code ...
-</script>
+    function setStatus(t) {
+      const el = $id('status');
+      if (el) el.textContent = t;
+    }
+
+    function log(t) {
+      const el = $id('log');
+      if (el) {
+        el.textContent += (t + '\n');
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+  </script>
+</body>
+</html>
