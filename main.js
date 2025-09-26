@@ -69,35 +69,64 @@ function scanInputDirectory(inputDir) {
   return folders;
 }
 
-// 根据文件夹名称选择JSX脚本
+// 根据SKU前缀选择JSX脚本
 function selectJSXScript(folders, jsxDir) {
-  // 脚本选择规则
-  const scriptRules = [
-    {
-      script: 'batch-template.jsx',
-      patterns: ['模板', 'template', '批处理', 'batch']
+  try {
+    // 获取JSX目录中的所有JSX文件
+    const jsxFiles = fs.readdirSync(jsxDir).filter(file => file.endsWith('.jsx'));
+    sendLog(`JSX目录中发现 ${jsxFiles.length} 个脚本: ${jsxFiles.join(', ')}`);
+    
+    if (jsxFiles.length === 0) {
+      sendLog('JSX目录中没有找到任何JSX文件');
+      return null;
     }
-  ];
-  
-  // 检查是否有匹配的文件夹
-  for (const rule of scriptRules) {
-    for (const pattern of rule.patterns) {
-      if (folders.some(folder => folder.toLowerCase().includes(pattern.toLowerCase()))) {
-        const scriptPath = path.join(jsxDir, rule.script);
-        if (fs.existsSync(scriptPath)) {
+    
+    // 从输入目录的文件/文件夹名称中提取SKU前缀
+    const skuPrefixes = [];
+    folders.forEach(folder => {
+      // 提取可能的SKU前缀（字母+数字的组合）
+      const matches = folder.match(/^([A-Z]+\d+)/i);
+      if (matches) {
+        skuPrefixes.push(matches[1].toUpperCase());
+      }
+    });
+    
+    sendLog(`提取的SKU前缀: ${skuPrefixes.join(', ')}`);
+    
+    // 尝试匹配JSX文件
+    for (const prefix of skuPrefixes) {
+      for (const jsxFile of jsxFiles) {
+        // 检查JSX文件名是否包含SKU前缀
+        const jsxFileName = jsxFile.toUpperCase();
+        if (jsxFileName.includes(prefix)) {
+          const scriptPath = path.join(jsxDir, jsxFile);
+          sendLog(`找到匹配的JSX脚本: ${jsxFile} (匹配前缀: ${prefix})`);
           return scriptPath;
         }
       }
     }
+    
+    // 如果没有找到匹配的，尝试通用匹配
+    const commonPatterns = ['BATCH', 'TEMPLATE', 'DEFAULT', 'COMMON'];
+    for (const pattern of commonPatterns) {
+      for (const jsxFile of jsxFiles) {
+        if (jsxFile.toUpperCase().includes(pattern)) {
+          const scriptPath = path.join(jsxDir, jsxFile);
+          sendLog(`使用通用JSX脚本: ${jsxFile} (匹配模式: ${pattern})`);
+          return scriptPath;
+        }
+      }
+    }
+    
+    // 如果还是没找到，使用第一个JSX文件
+    const firstScript = path.join(jsxDir, jsxFiles[0]);
+    sendLog(`使用默认JSX脚本: ${jsxFiles[0]}`);
+    return firstScript;
+    
+  } catch (error) {
+    sendLog(`扫描JSX目录失败: ${error.message}`);
+    return null;
   }
-  
-  // 默认使用batch-template.jsx
-  const defaultScript = path.join(jsxDir, 'batch-template.jsx');
-  if (fs.existsSync(defaultScript)) {
-    return defaultScript;
-  }
-  
-  return null;
 }
 
 // 创建窗口
@@ -191,18 +220,41 @@ ipcMain.handle('run-photoshop', async (event, config) => {
     
     // 选择JSX脚本
     let jsxPath = config.jsxPath;
-    if (!jsxPath || !fs.existsSync(jsxPath)) {
-      const jsxDir = path.join(__dirname, 'jsx');
+    let jsxDir = null;
+
+    if (jsxPath && fs.existsSync(jsxPath)) {
+      if (fs.statSync(jsxPath).isDirectory()) {
+        // 用户指定的是JSX文件夹
+        jsxDir = jsxPath;
+        sendLog(`使用指定JSX目录: ${jsxDir}`);
+      } else {
+        // 用户指定的是JSX文件，直接使用
+        sendLog(`使用指定JSX文件: ${jsxPath}`);
+      }
+    } else {
+      // 使用默认JSX目录
+      jsxDir = path.join(__dirname, 'jsx');
+      sendLog(`使用默认JSX目录: ${jsxDir}`);
+    }
+
+    // 如果需要从目录中选择脚本
+    if (jsxDir) {
       jsxPath = selectJSXScript(folders, jsxDir);
       if (!jsxPath) {
-        const error = 'JSX脚本路径无效且无法自动选择脚本';
+        const error = '无法在JSX目录中找到合适的脚本文件';
         sendLog(error);
         return resolve({ success: false, error });
       }
-      sendLog(`自动选择JSX脚本: ${jsxPath}`);
-    } else {
-      sendLog(`使用指定JSX脚本: ${jsxPath}`);
     }
+
+    // 确保JSX文件存在
+    if (!fs.existsSync(jsxPath)) {
+      const error = `JSX脚本文件不存在: ${jsxPath}`;
+      sendLog(error);
+      return resolve({ success: false, error });
+    }
+
+    sendLog(`最终选择的JSX脚本: ${jsxPath}`);
     
     // 设置环境变量
     const env = {
