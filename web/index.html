@@ -25,6 +25,8 @@
 
     .row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--col-gap);row-gap:14px}
     .row + .row{margin-top:16px}
+    .input-group{display:flex;gap:8px;align-items:end}
+    .input-group input{flex:1}
 
     label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
     input[type=text]{width:100%;padding:10px 12px;border-radius:3px;border:1px solid #D0D7DE;background:#fff;color:var(--text);box-sizing:border-box}
@@ -32,26 +34,27 @@
     input[type=text]:hover{border-color:#bcc5d1}
     input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
 
-    .btn{border:0;border-radius:20px;padding:10px 16px;cursor:pointer;font-weight:600}
+    .btn{border:0;border-radius:20px;padding:10px 16px;cursor:pointer;font-weight:600;white-space:nowrap}
     .btn.primary{background:var(--accent);color:#fff}
     .btn.secondary{background:#2f353d;color:#fff}
+    .btn.small{padding:6px 12px;font-size:12px;border-radius:16px}
     .btn:disabled{opacity:.6;cursor:not-allowed}
 
     .status{font-size:13px;color:var(--muted);margin-bottom:8px}
-    .log{white-space:pre-wrap;background:#0b0f14;color:#c9d1d9;border-radius:8px;border:1px solid #30363d;padding:10px;height:220px;overflow:auto}
+    .log{white-space:pre-wrap;background:#0b0f14;color:#c9d1d9;border-radius:8px;border:1px solid #30363d;padding:10px;height:300px;overflow:auto;font-family:Monaco,Consolas,monospace;font-size:12px}
+
+    .modal{position:fixed;inset:0;display:none;z-index:100}
+    .modal[aria-hidden="false"]{display:block}
+    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+    .modal-content{position:relative;max-width:800px;margin:80px auto;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:var(--pad-y) var(--pad-x)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .modal-title{font-size:18px;font-weight:600}
 
     @media (max-width: 920px){
       .row{grid-template-columns:1fr}
       .content{padding:12px}
       .header-inner{padding:12px}
     }
-
-    .modal{position:fixed;inset:0;display:none;z-index:100}
-    .modal[aria-hidden="false"]{display:block}
-    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
-    .modal-content{position:relative;max-width:720px;margin:80px auto;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:var(--pad-y) var(--pad-x)}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .modal-title{font-size:18px;font-weight:600}
   </style>
 </head>
 <body>
@@ -60,7 +63,7 @@
       <div class="brand">设计工坊 · Photoshop 批量运行</div>
       <nav class="menu">
         <button class="btn secondary" onclick="openSettings()">配置</button>
-        <button class="btn primary" onclick="run()">开始运行</button>
+        <button class="btn primary" onclick="run()" id="runBtn">开始运行</button>
       </nav>
     </div>
   </header>
@@ -71,14 +74,18 @@
       <div class="row">
         <div>
           <label>输入目录</label>
-          <input id="inputDir" type="text" placeholder="D:\input" />
+          <div class="input-group">
+            <input id="inputDir" type="text" placeholder="选择包含图片的输入目录" />
+            <button class="btn small secondary" onclick="selectInputDir()">浏览</button>
+          </div>
         </div>
       </div>
     </section>
+    
     <section class="panel">
       <h2>处理进度与日志</h2>
       <div id="status" class="status">就绪</div>
-      <div id="log" class="log"></div>
+      <div id="log" class="log">等待开始处理...</div>
     </section>
   </main>
 
@@ -92,17 +99,33 @@
       <div class="row">
         <div>
           <label>Photoshop.exe 路径</label>
-          <input id="photoshopPath" type="text" placeholder="C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe" />
+          <div class="input-group">
+            <input id="photoshopPath" type="text" placeholder="选择Photoshop.exe文件" />
+            <button class="btn small secondary" onclick="selectPhotoshopPath()">浏览</button>
+          </div>
         </div>
         <div>
-          <label>输出目录</label>
-          <input id="outputDir" type="text" placeholder="D:\output" />
+          <label>JSX 脚本路径（可选，留空自动选择）</label>
+          <div class="input-group">
+            <input id="jsxPath" type="text" placeholder="选择JSX脚本文件" />
+            <button class="btn small secondary" onclick="selectJsxPath()">浏览</button>
+          </div>
         </div>
       </div>
       <div class="row">
         <div>
+          <label>输出目录</label>
+          <div class="input-group">
+            <input id="outputDir" type="text" placeholder="选择输出目录" />
+            <button class="btn small secondary" onclick="selectOutputDir()">浏览</button>
+          </div>
+        </div>
+        <div>
           <label>规则 JSON（可选）</label>
-          <input id="rulesJsonPath" type="text" placeholder="D:\rules.json" />
+          <div class="input-group">
+            <input id="rulesJsonPath" type="text" placeholder="选择规则JSON文件" />
+            <button class="btn small secondary" onclick="selectRulesJson()">浏览</button>
+          </div>
         </div>
       </div>
     </div>
@@ -110,105 +133,176 @@
 
   <script>
     const $id = (x) => document.getElementById(x);
+    let isRunning = false;
 
     document.addEventListener('DOMContentLoaded', async () => {
-      await load();
-      bindAutoSave();
-      
-      // 监听来自主进程的日志消息
-      window.electronAPI.onLogMessage((event, message) => {
-        log(message);
-      });
+      await loadConfig();
+      setupLogListener();
     });
 
-    async function load() {
+    // 加载配置
+    async function loadConfig() {
       try {
-        const saved = await window.electronAPI.getConfig();
-        ['photoshopPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
-          if (saved[k]) {
-            const el = $id(k);
-            if (el) el.value = saved[k];
+        const config = await window.electronAPI.getConfig();
+        ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(key => {
+          const el = $id(key);
+          if (el && config[key]) {
+            el.value = config[key];
           }
         });
-        setStatus('就绪');
-      } catch (e) {
-        console.error('加载配置失败:', e);
-        setStatus('配置加载失败');
+        setStatus('配置已加载');
+      } catch (error) {
+        log(`加载配置失败: ${error.message}`);
       }
     }
 
-    function collectBody() {
-      return {
-        photoshopPath: ($id('photoshopPath').value || '').trim(),
-        inputDir: ($id('inputDir').value || '').trim(),
-        outputDir: ($id('outputDir').value || '').trim(),
-        rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
-      };
-    }
-
-    function openSettings() {
-      const m = $id('settingsModal');
-      if (m) m.setAttribute('aria-hidden', 'false');
-    }
-
-    async function closeSettings() {
-      const m = $id('settingsModal');
-      if (m) m.setAttribute('aria-hidden', 'true');
-      await saveConfig();
-    }
-
-    function bindAutoSave() {
-      ['photoshopPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
-        const el = $id(k);
-        if (el) {
-          el.addEventListener('change', saveConfig);
-          el.addEventListener('blur', saveConfig);
+    // 保存配置
+    async function saveConfig() {
+      try {
+        const config = {
+          photoshopPath: ($id('photoshopPath').value || '').trim(),
+          jsxPath: ($id('jsxPath').value || '').trim(),
+          inputDir: ($id('inputDir').value || '').trim(),
+          outputDir: ($id('outputDir').value || '').trim(),
+          rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
+        };
+        
+        const result = await window.electronAPI.saveConfig(config);
+        if (result.success) {
+          log('配置已保存');
+        } else {
+          log(`保存配置失败: ${result.error}`);
         }
+      } catch (error) {
+        log(`保存配置失败: ${error.message}`);
+      }
+    }
+
+    // 文件选择函数
+    async function selectInputDir() {
+      const path = await window.electronAPI.selectDirectory();
+      if (path) {
+        $id('inputDir').value = path;
+        await saveConfig();
+      }
+    }
+
+    async function selectOutputDir() {
+      const path = await window.electronAPI.selectDirectory();
+      if (path) {
+        $id('outputDir').value = path;
+        await saveConfig();
+      }
+    }
+
+    async function selectPhotoshopPath() {
+      const path = await window.electronAPI.selectFile([
+        { name: 'Photoshop', extensions: ['exe'] }
+      ]);
+      if (path) {
+        $id('photoshopPath').value = path;
+        await saveConfig();
+      }
+    }
+
+    async function selectJsxPath() {
+      const path = await window.electronAPI.selectFile([
+        { name: 'JSX Scripts', extensions: ['jsx'] }
+      ]);
+      if (path) {
+        $id('jsxPath').value = path;
+        await saveConfig();
+      }
+    }
+
+    async function selectRulesJson() {
+      const path = await window.electronAPI.selectFile([
+        { name: 'JSON Files', extensions: ['json'] }
+      ]);
+      if (path) {
+        $id('rulesJsonPath').value = path;
+        await saveConfig();
+      }
+    }
+
+    // 设置监听器
+    function setupLogListener() {
+      window.electronAPI.onLogMessage((message) => {
+        log(message);
       });
     }
 
-    async function saveConfig() {
-      try {
-        const body = collectBody();
-        await window.electronAPI.saveConfig(body);
-      } catch (e) {
-        console.error('保存配置失败:', e);
-      }
-    }
-
+    // 运行处理
     async function run() {
-      const body = collectBody();
-      setStatus('处理中…');
+      if (isRunning) return;
       
-      // 清空日志
-      const logEl = $id('log');
-      if (logEl) logEl.textContent = '';
+      isRunning = true;
+      const runBtn = $id('runBtn');
+      runBtn.disabled = true;
+      runBtn.textContent = '处理中...';
       
       try {
-        const result = await window.electronAPI.runPhotoshop(body);
-        const ok = result && result.ok !== false && result.code === 0;
-        setStatus(ok ? '处理完成' : '处理失败');
+        // 先保存当前配置
+        await saveConfig();
         
-        if (!ok && result.msg) {
-          log(`错误: ${result.msg}`);
+        const config = {
+          photoshopPath: ($id('photoshopPath').value || '').trim(),
+          jsxPath: ($id('jsxPath').value || '').trim(),
+          inputDir: ($id('inputDir').value || '').trim(),
+          outputDir: ($id('outputDir').value || '').trim(),
+          rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
+        };
+        
+        setStatus('处理中...');
+        clearLog();
+        
+        const result = await window.electronAPI.runPhotoshop(config);
+        
+        if (result.success) {
+          setStatus('处理完成');
+          log('=== 处理成功完成 ===');
+        } else {
+          setStatus('处理失败');
+          log(`=== 处理失败: ${result.error} ===`);
         }
-      } catch (e) {
+        
+      } catch (error) {
         setStatus('运行异常');
-        log('运行异常: ' + e);
+        log(`运行异常: ${error.message}`);
+      } finally {
+        isRunning = false;
+        runBtn.disabled = false;
+        runBtn.textContent = '开始运行';
       }
     }
 
-    function setStatus(t) {
-      const el = $id('status');
-      if (el) el.textContent = t;
+    // UI 辅助函数
+    function openSettings() {
+      $id('settingsModal').setAttribute('aria-hidden', 'false');
     }
 
-    function log(t) {
+    function closeSettings() {
+      $id('settingsModal').setAttribute('aria-hidden', 'true');
+      saveConfig();
+    }
+
+    function setStatus(text) {
+      const el = $id('status');
+      if (el) el.textContent = text;
+    }
+
+    function log(text) {
       const el = $id('log');
       if (el) {
-        el.textContent += (t + '\n');
+        const timestamp = new Date().toLocaleTimeString();
+        el.textContent += `[${timestamp}] ${text}\n`;
         el.scrollTop = el.scrollHeight;
       }
+    }
+
+    function clearLog() {
+      const el = $id('log');
+      if (el) el.textContent = '';
     }
   </script>
 </body>
