@@ -2,18 +2,20 @@
   "name": "ps-batch-runner",
   "version": "0.1.0",
   "private": true,
-  "description": "本地 Windows 用 Photoshop JSX 批量脚本运行工具",
+  "description": "本地 Windows 用 Photoshop JSX 批量脚本运行工具（含简易Web UI）",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win --publish=never",
-    "build": "npm run build:win"
+    "build:win": "electron-builder --win",
+    "build": "npm run build:win",
+    "installer:win": "iscc installer.iss"
   },
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "electron": "^27.0.0"
+  },
   "devDependencies": {
-    "electron": "^27.0.0",
     "electron-builder": "^24.6.4"
   },
   "build": {
