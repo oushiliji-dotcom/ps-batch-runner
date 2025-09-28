@@ -95,7 +95,7 @@ function selectJSXScript(inputDir, jsxDir) {
         return batchTemplatePath;
       }
       
-      // 在JSX目录中查找匹配的脚本 - 修复匹配逻辑
+      // 在JSX目录中查找匹配的脚本 - 修复后的匹配逻辑
       console.log(`[selectJSXScript] 在JSX目录中查找包含前缀 ${prefix} 的脚本`);
       for (const jsxFile of jsxFiles) {
         // 检查JSX文件名是否包含这个前缀
