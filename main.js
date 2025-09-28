@@ -217,6 +217,58 @@ function handleUnprocessableFiles(inputFiles, unmatchedPrefixes, outputDir) {
   }
 }
 
+// 验证Photoshop路径
+function validatePhotoshopPath(psPath) {
+  if (!fs.existsSync(psPath)) {
+    throw new Error(`Photoshop路径不存在: ${psPath}`);
+  }
+  
+  const stat = fs.statSync(psPath);
+  if (!stat.isFile()) {
+    throw new Error(`Photoshop路径不是文件: ${psPath}`);
+  }
+  
+  if (!psPath.toLowerCase().endsWith('.exe')) {
+    throw new Error(`Photoshop路径不是exe文件: ${psPath}`);
+  }
+}
+
+// 创建临时测试脚本来验证环境
+function createTestScript(inputDir, outputDir) {
+  const testScript = `
+// 测试脚本 - 验证环境变量和基本功能
+function getenv(k){ try { return $.getenv(k) || ''; } catch(e){ return ''; } }
+
+var INPUT = getenv('PS_INPUT_DIR');
+var OUTPUT = getenv('PS_OUTPUT_DIR');
+
+// 记录环境变量
+$.writeln('=== 环境变量检查 ===');
+$.writeln('PS_INPUT_DIR: ' + INPUT);
+$.writeln('PS_OUTPUT_DIR: ' + OUTPUT);
+
+// 检查目录是否存在
+var inputFolder = new Folder(INPUT);
+var outputFolder = new Folder(OUTPUT);
+
+$.writeln('输入目录存在: ' + inputFolder.exists);
+$.writeln('输出目录存在: ' + outputFolder.exists);
+
+if (!outputFolder.exists) {
+  outputFolder.create();
+  $.writeln('创建输出目录: ' + OUTPUT);
+}
+
+// 设置完成标志
+$.setenv('PS_TEST_DONE', '1');
+$.writeln('=== 测试完成 ===');
+`;
+
+  const testScriptPath = path.join(__dirname, 'test-env.jsx');
+  fs.writeFileSync(testScriptPath, testScript);
+  return testScriptPath;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -295,6 +347,16 @@ ipcMain.handle('run-photoshop', async (event, config) => {
         return;
       }
       
+      // 验证Photoshop路径
+      try {
+        validatePhotoshopPath(config.photoshopPath);
+        sendLog('Photoshop路径验证通过');
+      } catch (error) {
+        sendLog(`Photoshop路径验证失败: ${error.message}`);
+        reject(error);
+        return;
+      }
+      
       // 扫描输入目录
       sendLog(`扫描输入目录: ${config.inputDir}`);
       const inputFiles = scanDirectory(config.inputDir);
@@ -313,93 +375,157 @@ ipcMain.handle('run-photoshop', async (event, config) => {
         sendLog(`创建输出目录: ${config.outputDir}`);
       }
       
-      // 选择JSX脚本
-      const scriptResult = selectJSXScript(inputFiles, config.jsxPath);
+      // 首先运行测试脚本验证环境
+      sendLog('=== 运行环境测试 ===');
+      const testScriptPath = createTestScript(config.inputDir, config.outputDir);
       
-      if (!scriptResult.scriptPath) {
-        // 所有文件都无法处理，全部移动到"无法执行的文件"文件夹
-        handleUnprocessableFiles(inputFiles, scriptResult.unmatchedPrefixes, config.outputDir);
-        const message = '所有文件都无法找到匹配的JSX脚本，已移动到"无法执行的文件"文件夹';
-        sendLog(message);
-        resolve({ success: true, message });
-        return;
-      }
-      
-      // 处理无法执行的文件
-      if (scriptResult.unmatchedPrefixes.length > 0) {
-        handleUnprocessableFiles(inputFiles, scriptResult.unmatchedPrefixes, config.outputDir);
-      }
-      
-      sendLog(`最终选择的JSX脚本: ${scriptResult.scriptPath}`);
-      
-      // 检查JSX脚本文件是否存在
-      if (!fs.existsSync(scriptResult.scriptPath)) {
-        const error = `JSX脚本文件不存在: ${scriptResult.scriptPath}`;
-        sendLog(error);
-        reject(new Error(error));
-        return;
-      }
-      
-      // 设置环境变量
-      const env = {
+      const testEnv = {
         ...process.env,
         PS_INPUT_DIR: config.inputDir,
         PS_OUTPUT_DIR: config.outputDir
       };
       
-      if (config.rulesJsonPath) {
-        env.PS_RULES_JSON = config.rulesJsonPath;
-      }
-      
-      sendLog('环境变量设置完成');
-      sendLog(`PS_INPUT_DIR: ${config.inputDir}`);
-      sendLog(`PS_OUTPUT_DIR: ${config.outputDir}`);
-      
-      // 启动Photoshop进程
-      sendLog(`启动Photoshop进程: ${config.photoshopPath} -r ${scriptResult.scriptPath}`);
-      const psProcess = spawn(config.photoshopPath, ['-r', scriptResult.scriptPath], {
-        env: env,
+      const testProcess = spawn(config.photoshopPath, ['-r', testScriptPath], {
+        env: testEnv,
         stdio: ['pipe', 'pipe', 'pipe']
       });
       
-      sendLog('=== 处理开始，启动Photoshop失败 ===');
+      let testOutput = '';
+      let testError = '';
       
-      // 处理输出
-      psProcess.stdout.on('data', (data) => {
-        const output = data.toString().trim();
-        if (output) {
-          sendLog(`Photoshop输出: ${output}`);
-        }
+      testProcess.stdout.on('data', (data) => {
+        const output = data.toString();
+        testOutput += output;
+        sendLog(`测试输出: ${output.trim()}`);
       });
       
-      psProcess.stderr.on('data', (data) => {
-        const error = data.toString().trim();
-        if (error) {
-          sendLog(`Photoshop错误: ${error}`);
-        }
+      testProcess.stderr.on('data', (data) => {
+        const error = data.toString();
+        testError += error;
+        sendLog(`测试错误: ${error.trim()}`);
       });
       
-      // 处理进程结束
-      psProcess.on('close', (code) => {
-        if (code === 0) {
-          sendLog('=== Photoshop处理完成 ===');
-          resolve({ 
-            success: true, 
-            message: `处理完成！匹配前缀: ${scriptResult.matchedPrefixes.join(', ')}${scriptResult.unmatchedPrefixes.length > 0 ? `，无法处理前缀: ${scriptResult.unmatchedPrefixes.join(', ')}` : ''}` 
-          });
-        } else {
-          const error = `Photoshop进程异常退出，退出码: ${code}`;
-          sendLog(`=== Photoshop处理失败 ===`);
+      testProcess.on('close', (code) => {
+        // 清理测试脚本
+        try {
+          fs.unlinkSync(testScriptPath);
+        } catch (e) {
+          // 忽略清理错误
+        }
+        
+        if (code !== 0) {
+          const error = `环境测试失败，退出码: ${code}\n输出: ${testOutput}\n错误: ${testError}`;
           sendLog(error);
           reject(new Error(error));
+          return;
         }
+        
+        sendLog('环境测试通过，开始正式处理');
+        
+        // 继续正式处理
+        runMainProcess();
       });
       
-      psProcess.on('error', (error) => {
-        const errorMsg = `启动Photoshop失败: ${error.message}`;
-        sendLog(errorMsg);
-        reject(new Error(errorMsg));
-      });
+      function runMainProcess() {
+        // 选择JSX脚本
+        const scriptResult = selectJSXScript(inputFiles, config.jsxPath);
+        
+        if (!scriptResult.scriptPath) {
+          // 所有文件都无法处理，全部移动到"无法执行的文件"文件夹
+          handleUnprocessableFiles(inputFiles, scriptResult.unmatchedPrefixes, config.outputDir);
+          const message = '所有文件都无法找到匹配的JSX脚本，已移动到"无法执行的文件"文件夹';
+          sendLog(message);
+          resolve({ success: true, message });
+          return;
+        }
+        
+        // 处理无法执行的文件
+        if (scriptResult.unmatchedPrefixes.length > 0) {
+          handleUnprocessableFiles(inputFiles, scriptResult.unmatchedPrefixes, config.outputDir);
+        }
+        
+        sendLog(`最终选择的JSX脚本: ${scriptResult.scriptPath}`);
+        
+        // 检查JSX脚本文件是否存在
+        if (!fs.existsSync(scriptResult.scriptPath)) {
+          const error = `JSX脚本文件不存在: ${scriptResult.scriptPath}`;
+          sendLog(error);
+          reject(new Error(error));
+          return;
+        }
+        
+        // 设置环境变量
+        const env = {
+          ...process.env,
+          PS_INPUT_DIR: config.inputDir,
+          PS_OUTPUT_DIR: config.outputDir
+        };
+        
+        if (config.rulesJsonPath) {
+          env.PS_RULES_JSON = config.rulesJsonPath;
+        }
+        
+        sendLog('环境变量设置完成');
+        sendLog(`PS_INPUT_DIR: ${config.inputDir}`);
+        sendLog(`PS_OUTPUT_DIR: ${config.outputDir}`);
+        
+        // 启动Photoshop进程
+        sendLog(`启动Photoshop进程: ${config.photoshopPath} -r ${scriptResult.scriptPath}`);
+        const psProcess = spawn(config.photoshopPath, ['-r', scriptResult.scriptPath], {
+          env: env,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        sendLog('=== 处理开始 ===');
+        
+        let psOutput = '';
+        let psError = '';
+        
+        // 处理输出
+        psProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          psOutput += output;
+          const lines = output.trim().split('\n');
+          lines.forEach(line => {
+            if (line.trim()) {
+              sendLog(`PS输出: ${line.trim()}`);
+            }
+          });
+        });
+        
+        psProcess.stderr.on('data', (data) => {
+          const error = data.toString();
+          psError += error;
+          const lines = error.trim().split('\n');
+          lines.forEach(line => {
+            if (line.trim()) {
+              sendLog(`PS错误: ${line.trim()}`);
+            }
+          });
+        });
+        
+        // 处理进程结束
+        psProcess.on('close', (code) => {
+          if (code === 0) {
+            sendLog('=== Photoshop处理完成 ===');
+            resolve({ 
+              success: true, 
+              message: `处理完成！匹配前缀: ${scriptResult.matchedPrefixes.join(', ')}${scriptResult.unmatchedPrefixes.length > 0 ? `，无法处理前缀: ${scriptResult.unmatchedPrefixes.join(', ')}` : ''}` 
+            });
+          } else {
+            const error = `Photoshop进程异常退出，退出码: ${code}\n完整输出:\n${psOutput}\n完整错误:\n${psError}`;
+            sendLog(`=== Photoshop处理失败 ===`);
+            sendLog(error);
+            reject(new Error(error));
+          }
+        });
+        
+        psProcess.on('error', (error) => {
+          const errorMsg = `启动Photoshop失败: ${error.message}`;
+          sendLog(errorMsg);
+          reject(new Error(errorMsg));
+        });
+      }
       
     } catch (error) {
       const errorMsg = `运行出错: ${error.message}`;
