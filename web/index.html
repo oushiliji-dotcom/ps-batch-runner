@@ -1,73 +1,57 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>设计工坊 · PS 批量运行</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PS批处理工具</title>
   <style>
-    :root{
-      --bg:#F5F7FA; --header-bg:#242424; --header-border:#383838; --panel-bg:#FFFFFF; --panel-border:#E5E5E5;
-      --text:#1F1F1F; --muted:#666666; --accent:#1f6feb; --radius:12px; --gap:24px; --pad:24px;
-      --pad-x:28px; --pad-y:20px; --col-gap: var(--pad-x);
-      --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(149,157,165,.2);
-    }
-    html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
-
-    .header{position:sticky;top:0;z-index:10;background:var(--header-bg);border-bottom:1px solid var(--header-border)}
-    .header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--gap);padding:12px var(--pad);color:#fff}
-    .brand{font-weight:600;letter-spacing:.3px}
-    .menu{display:flex;gap:12px;align-items:center}
-
-    .content{max-width:1200px;margin:0 auto;padding:var(--pad)}
-    .panel{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:var(--pad-y) var(--pad-x);margin:12px 0;box-shadow:var(--shadow-card)}
-    .panel h2{margin:0 0 12px 0;font-size:18px;font-weight:600;letter-spacing:.2px}
-
-    .row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--col-gap);row-gap:14px}
-    .row + .row{margin-top:16px}
-    .input-group{display:flex;gap:8px;align-items:end}
-    .input-group input{flex:1}
-
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    input[type=text]{width:100%;padding:10px 12px;border-radius:3px;border:1px solid #D0D7DE;background:#fff;color:var(--text);box-sizing:border-box}
-    input[type=text]::placeholder{color:#9aa4b2}
-    input[type=text]:hover{border-color:#bcc5d1}
-    input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
-
-    .btn{border:0;border-radius:20px;padding:10px 16px;cursor:pointer;font-weight:600;white-space:nowrap}
-    .btn.primary{background:var(--accent);color:#fff}
-    .btn.secondary{background:#2f353d;color:#fff}
-    .btn.small{padding:6px 12px;font-size:12px;border-radius:16px}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-
-    .status{font-size:13px;color:var(--muted);margin-bottom:8px}
-    .log{white-space:pre-wrap;background:#0b0f14;color:#c9d1d9;border-radius:8px;border:1px solid #30363d;padding:10px;height:300px;overflow:auto;font-family:Monaco,Consolas,monospace;font-size:12px}
-
-    .modal{position:fixed;inset:0;display:none;z-index:100}
-    .modal[aria-hidden="false"]{display:block}
-    .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
-    .modal-content{position:relative;max-width:800px;margin:80px auto;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:var(--pad-y) var(--pad-x)}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .modal-title{font-size:18px;font-weight:600}
-
-    @media (max-width: 920px){
-      .row{grid-template-columns:1fr}
-      .content{padding:12px}
-      .header-inner{padding:12px}
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+    .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 20px; }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .logo { font-size: 18px; font-weight: 600; color: #333; }
+    .nav-actions { display: flex; gap: 10px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn.primary { background: #007AFF; color: white; }
+    .btn.primary:hover { background: #0056CC; }
+    .btn.secondary { background: #f0f0f0; color: #333; }
+    .btn.secondary:hover { background: #e0e0e0; }
+    .btn.success { background: #28a745; color: white; }
+    .btn.success:hover { background: #218838; }
+    .content { padding: 20px; max-width: 1200px; margin: 0 auto; }
+    .panel { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .panel h2 { margin-bottom: 15px; color: #333; font-size: 16px; }
+    .row { display: flex; gap: 20px; margin-bottom: 15px; }
+    .row > div { flex: 1; }
+    .input-group { display: flex; gap: 8px; align-items: center; }
+    .input-group input { flex: 1; }
+    label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
+    input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    input[type="text"]:focus { outline: none; border-color: #007AFF; }
+    .status { padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 10px; font-weight: 500; }
+    .log { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal[aria-hidden="true"] { display: none; }
+    .modal-backdrop { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+    .modal-content { background: white; border-radius: 8px; padding: 0; width: 90%; max-width: 600px; position: relative; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #e0e0e0; }
+    .modal-title { font-size: 18px; font-weight: 600; }
+    .modal-body { padding: 20px; }
+    .browse-btn { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
   </style>
 </head>
 <body>
   <header class="header">
-    <div class="header-inner">
-      <div class="brand">设计工坊 · Photoshop 批量运行</div>
-      <nav class="menu">
-        <button class="btn secondary" onclick="openSettings()">配置</button>
-        <button class="btn primary" onclick="run()" id="runBtn">开始运行</button>
+    <div class="nav">
+      <div class="logo">PS批处理工具</div>
+      <nav class="nav-actions">
+        <button class="btn secondary" onclick="openSettings()">设置</button>
+        <button class="btn success" onclick="run()">开始处理</button>
       </nav>
     </div>
   </header>
 
+  <!-- 主内容 -->
   <main class="content">
     <section class="panel">
       <h2>输入目录</h2>
@@ -75,20 +59,20 @@
         <div>
           <label>输入目录</label>
           <div class="input-group">
-            <input id="inputDir" type="text" placeholder="选择包含图片的输入目录" />
-            <button class="btn small secondary" onclick="selectInputDir()">浏览</button>
+            <input id="inputDir" type="text" placeholder="选择包含图片文件的目录" />
+            <button class="btn secondary browse-btn" onclick="selectInputDir()">浏览</button>
           </div>
         </div>
       </div>
     </section>
-    
     <section class="panel">
       <h2>处理进度与日志</h2>
       <div id="status" class="status">就绪</div>
-      <div id="log" class="log">等待开始处理...</div>
+      <div id="log" class="log"></div>
     </section>
   </main>
 
+  <!-- 设置弹窗（右上角入口） -->
   <div id="settingsModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeSettings()"></div>
     <div class="modal-content">
@@ -96,35 +80,41 @@
         <div class="modal-title">运行配置</div>
         <button class="btn secondary" onclick="closeSettings()">完成</button>
       </div>
-      <div class="row">
-        <div>
-          <label>Photoshop.exe 路径</label>
-          <div class="input-group">
-            <input id="photoshopPath" type="text" placeholder="选择Photoshop.exe文件" />
-            <button class="btn small secondary" onclick="selectPhotoshopPath()">浏览</button>
+      <div class="modal-body">
+        <div class="row">
+          <div>
+            <label>Photoshop.exe 路径</label>
+            <div class="input-group">
+              <input id="photoshopPath" type="text" placeholder="选择Photoshop.exe文件" />
+              <button class="btn secondary browse-btn" onclick="selectPhotoshopPath()">浏览</button>
+            </div>
           </div>
         </div>
-        <div>
-          <label>JSX 脚本路径（可选，留空自动选择）</label>
-          <div class="input-group">
-            <input id="jsxPath" type="text" placeholder="选择JSX脚本文件" />
-            <button class="btn small secondary" onclick="selectJsxPath()">浏览</button>
+        <div class="row">
+          <div>
+            <label>JSX 脚本文件夹</label>
+            <div class="input-group">
+              <input id="jsxPath" type="text" placeholder="选择包含JSX脚本的文件夹" />
+              <button class="btn secondary browse-btn" onclick="selectJsxPath()">浏览</button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>输出目录</label>
-          <div class="input-group">
-            <input id="outputDir" type="text" placeholder="选择输出目录" />
-            <button class="btn small secondary" onclick="selectOutputDir()">浏览</button>
+        <div class="row">
+          <div>
+            <label>输出目录</label>
+            <div class="input-group">
+              <input id="outputDir" type="text" placeholder="选择输出目录" />
+              <button class="btn secondary browse-btn" onclick="selectOutputDir()">浏览</button>
+            </div>
           </div>
         </div>
-        <div>
-          <label>规则 JSON（可选）</label>
-          <div class="input-group">
-            <input id="rulesJsonPath" type="text" placeholder="选择规则JSON文件" />
-            <button class="btn small secondary" onclick="selectRulesJson()">浏览</button>
+        <div class="row">
+          <div>
+            <label>规则 JSON（可选）</label>
+            <div class="input-group">
+              <input id="rulesJsonPath" type="text" placeholder="选择规则JSON文件（可选）" />
+              <button class="btn secondary browse-btn" onclick="selectRulesJsonPath()">浏览</button>
+            </div>
           </div>
         </div>
       </div>
@@ -135,8 +125,9 @@
     const $id = (x) => document.getElementById(x);
     let isRunning = false;
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      await loadConfig();
+    document.addEventListener('DOMContentLoaded', () => {
+      loadConfig();
+      bindAutoSave();
       setupLogListener();
     });
 
@@ -144,10 +135,10 @@
     async function loadConfig() {
       try {
         const config = await window.electronAPI.getConfig();
-        ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(key => {
-          const el = $id(key);
-          if (el && config[key]) {
-            el.value = config[key];
+        ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+          if (config[k]) {
+            const el = $id(k);
+            if (el) el.value = config[k];
           }
         });
         setStatus('配置已加载');
@@ -156,136 +147,177 @@
       }
     }
 
+    // 收集表单数据
+    function collectConfig() {
+      return {
+        photoshopPath: ($id('photoshopPath').value || '').trim(),
+        jsxPath: ($id('jsxPath').value || '').trim(),
+        inputDir: ($id('inputDir').value || '').trim(),
+        outputDir: ($id('outputDir').value || '').trim(),
+        rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
+      };
+    }
+
     // 保存配置
     async function saveConfig() {
       try {
-        const config = {
-          photoshopPath: ($id('photoshopPath').value || '').trim(),
-          jsxPath: ($id('jsxPath').value || '').trim(),
-          inputDir: ($id('inputDir').value || '').trim(),
-          outputDir: ($id('outputDir').value || '').trim(),
-          rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
-        };
-        
-        const result = await window.electronAPI.saveConfig(config);
-        if (result.success) {
-          log('配置已保存');
-        } else {
-          log(`保存配置失败: ${result.error}`);
-        }
+        const config = collectConfig();
+        await window.electronAPI.saveConfig(config);
       } catch (error) {
         log(`保存配置失败: ${error.message}`);
       }
     }
 
-    // 文件选择函数
+    // 文件/文件夹选择函数
     async function selectInputDir() {
-      const path = await window.electronAPI.selectDirectory();
-      if (path) {
-        $id('inputDir').value = path;
-        await saveConfig();
-      }
-    }
-
-    async function selectOutputDir() {
-      const path = await window.electronAPI.selectDirectory();
-      if (path) {
-        $id('outputDir').value = path;
-        await saveConfig();
+      try {
+        const path = await window.electronAPI.selectDirectory();
+        if (path) {
+          $id('inputDir').value = path;
+          await saveConfig();
+        }
+      } catch (error) {
+        log(`选择输入目录失败: ${error.message}`);
       }
     }
 
     async function selectPhotoshopPath() {
-      const path = await window.electronAPI.selectFile([
-        { name: 'Photoshop', extensions: ['exe'] }
-      ]);
-      if (path) {
-        $id('photoshopPath').value = path;
-        await saveConfig();
+      try {
+        const path = await window.electronAPI.selectFile({
+          filters: [
+            { name: 'Photoshop', extensions: ['exe'] },
+            { name: '所有文件', extensions: ['*'] }
+          ]
+        });
+        if (path) {
+          $id('photoshopPath').value = path;
+          await saveConfig();
+        }
+      } catch (error) {
+        log(`选择Photoshop路径失败: ${error.message}`);
       }
     }
 
     async function selectJsxPath() {
-      const path = await window.electronAPI.selectFile([
-        { name: 'JSX Scripts', extensions: ['jsx'] }
-      ]);
-      if (path) {
-        $id('jsxPath').value = path;
-        await saveConfig();
+      try {
+        const path = await window.electronAPI.selectDirectory();
+        if (path) {
+          $id('jsxPath').value = path;
+          await saveConfig();
+        }
+      } catch (error) {
+        log(`选择JSX文件夹失败: ${error.message}`);
       }
     }
 
-    async function selectRulesJson() {
-      const path = await window.electronAPI.selectFile([
-        { name: 'JSON Files', extensions: ['json'] }
-      ]);
-      if (path) {
-        $id('rulesJsonPath').value = path;
-        await saveConfig();
+    async function selectOutputDir() {
+      try {
+        const path = await window.electronAPI.selectDirectory();
+        if (path) {
+          $id('outputDir').value = path;
+          await saveConfig();
+        }
+      } catch (error) {
+        log(`选择输出目录失败: ${error.message}`);
       }
     }
 
-    // 设置监听器
-    function setupLogListener() {
-      window.electronAPI.onLogMessage((message) => {
-        log(message);
+    async function selectRulesJsonPath() {
+      try {
+        const path = await window.electronAPI.selectFile({
+          filters: [
+            { name: 'JSON文件', extensions: ['json'] },
+            { name: '所有文件', extensions: ['*'] }
+          ]
+        });
+        if (path) {
+          $id('rulesJsonPath').value = path;
+          await saveConfig();
+        }
+      } catch (error) {
+        log(`选择规则JSON失败: ${error.message}`);
+      }
+    }
+
+    // 弹窗控制
+    function openSettings() {
+      const m = $id('settingsModal');
+      if (m) m.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSettings() {
+      const m = $id('settingsModal');
+      if (m) m.setAttribute('aria-hidden', 'true');
+      saveConfig();
+    }
+
+    // 自动保存绑定
+    function bindAutoSave() {
+      ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+        const el = $id(k);
+        if (el) {
+          el.addEventListener('change', saveConfig);
+          el.addEventListener('blur', saveConfig);
+        }
       });
+    }
+
+    // 设置日志监听
+    function setupLogListener() {
+      if (window.electronAPI && window.electronAPI.onLogMessage) {
+        window.electronAPI.onLogMessage((message) => {
+          log(message);
+        });
+      }
     }
 
     // 运行处理
     async function run() {
-      if (isRunning) return;
-      
-      isRunning = true;
-      const runBtn = $id('runBtn');
-      runBtn.disabled = true;
-      runBtn.textContent = '处理中...';
-      
+      if (isRunning) {
+        log('处理正在进行中，请等待完成');
+        return;
+      }
+
       try {
-        // 先保存当前配置
-        await saveConfig();
+        const config = collectConfig();
         
-        const config = {
-          photoshopPath: ($id('photoshopPath').value || '').trim(),
-          jsxPath: ($id('jsxPath').value || '').trim(),
-          inputDir: ($id('inputDir').value || '').trim(),
-          outputDir: ($id('outputDir').value || '').trim(),
-          rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
-        };
-        
+        // 基本验证
+        if (!config.inputDir) {
+          alert('请选择输入目录');
+          return;
+        }
+        if (!config.photoshopPath) {
+          alert('请选择Photoshop.exe路径');
+          return;
+        }
+        if (!config.outputDir) {
+          alert('请选择输出目录');
+          return;
+        }
+
+        isRunning = true;
         setStatus('处理中...');
         clearLog();
-        
+        log('开始处理...');
+
         const result = await window.electronAPI.runPhotoshop(config);
         
         if (result.success) {
           setStatus('处理完成');
-          log('=== 处理成功完成 ===');
+          log(`处理成功: ${result.message}`);
         } else {
           setStatus('处理失败');
-          log(`=== 处理失败: ${result.error} ===`);
+          log(`处理失败: ${result.message}`);
         }
-        
       } catch (error) {
-        setStatus('运行异常');
-        log(`运行异常: ${error.message}`);
+        setStatus('处理异常');
+        log(`处理异常: ${error.message}`);
       } finally {
         isRunning = false;
-        runBtn.disabled = false;
-        runBtn.textContent = '开始运行';
       }
     }
 
     // UI 辅助函数
-    function openSettings() {
-      $id('settingsModal').setAttribute('aria-hidden', 'false');
-    }
-
-    function closeSettings() {
-      $id('settingsModal').setAttribute('aria-hidden', 'true');
-      saveConfig();
-    }
-
     function setStatus(text) {
       const el = $id('status');
       if (el) el.textContent = text;
@@ -294,8 +326,7 @@
     function log(text) {
       const el = $id('log');
       if (el) {
-        const timestamp = new Date().toLocaleTimeString();
-        el.textContent += `[${timestamp}] ${text}\n`;
+        el.textContent += text + '\n';
         el.scrollTop = el.scrollHeight;
       }
     }
