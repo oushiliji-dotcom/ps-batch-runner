@@ -45,12 +45,30 @@ function saveConfig(config) {
 // 扫描目录获取文件列表
 function scanDirectory(dirPath) {
   try {
+    sendLog(`正在扫描目录: ${dirPath}`);
     const files = fs.readdirSync(dirPath);
-    return files.filter(file => {
+    sendLog(`目录中找到 ${files.length} 个项目`);
+    
+    const imageFiles = files.filter(file => {
       const filePath = path.join(dirPath, file);
-      return fs.statSync(filePath).isFile();
+      const isFile = fs.statSync(filePath).isFile();
+      const isImageFile = /\.(jpg|jpeg|png|tiff|tif|psd|bmp)$/i.test(file);
+      
+      if (isFile && isImageFile) {
+        sendLog(`找到图片文件: ${file}`);
+        return true;
+      } else if (isFile) {
+        sendLog(`跳过非图片文件: ${file}`);
+      } else {
+        sendLog(`跳过目录: ${file}`);
+      }
+      return false;
     });
+    
+    sendLog(`共找到 ${imageFiles.length} 个图片文件`);
+    return imageFiles;
   } catch (error) {
+    sendLog(`扫描目录失败: ${error.message}`);
     console.error('扫描目录失败:', error);
     return [];
   }
@@ -214,7 +232,8 @@ async function runPhotoshopScript(config) {
   // 扫描输入目录
   const inputFiles = scanDirectory(inputDir);
   if (inputFiles.length === 0) {
-    sendLog('输入目录中没有找到文件');
+    sendLog('输入目录中没有找到图片文件');
+    sendLog('支持的图片格式: JPG, JPEG, PNG, TIFF, TIF, PSD, BMP');
     return;
   }
   
