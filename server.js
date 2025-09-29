@@ -202,8 +202,16 @@ app.post('/api/run', async (req, res) => {
     const processableFiles = [];
     const unprocessableFiles = [];
 
-    const jsxDir = path.join(__dirname, 'jsx');
+    // 使用用户配置的JSX路径，如果没有配置则使用默认路径
+    const jsxDir = cfg.jsxPath || path.join(__dirname, 'jsx');
     console.log('JSX目录:', jsxDir);
+
+    // 检查JSX目录是否存在
+    if (!fs.existsSync(jsxDir)) {
+      return res.status(400).json({ 
+        error: `JSX目录不存在: ${jsxDir}。请在设置中配置正确的JSX脚本路径。` 
+      });
+    }
 
     // 分类文件
     for (const file of inputFiles) {
