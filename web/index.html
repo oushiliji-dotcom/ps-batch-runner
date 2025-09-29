@@ -91,13 +91,17 @@
           </div>
         </div>
         <div class="row">
+          <!-- 在配置弹窗中，移除JSX路径的配置行 -->
+          <!-- 找到这一行并删除： -->
+          <!-- 
           <div>
-            <label>JSX 脚本文件夹</label>
-            <div class="input-group">
-              <input id="jsxPath" type="text" placeholder="选择包含JSX脚本的文件夹" />
-              <button class="btn secondary browse-btn" onclick="selectJsxPath()">浏览</button>
-            </div>
+            <label>JSX 脚本路径</label>
+            <input id="jsxPath" type="text" placeholder="选择包含JSX脚本的文件夹" />
+            <button class="btn secondary browse-btn" onclick="selectJsxPath()">浏览</button>
           </div>
+          -->
+          
+          <!-- 在JavaScript部分，修改collectConfig函数，移除jsxPath -->
         </div>
         <div class="row">
           <div>

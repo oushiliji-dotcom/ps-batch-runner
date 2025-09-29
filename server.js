@@ -55,27 +55,40 @@ function extractSKUPrefix(filename) {
 
 // 选择JSX脚本
 function selectJSXScript(inputFile, jsxDir) {
+  console.log(`为文件 ${inputFile} 选择JSX脚本`);
+  
+  // 提取SKU前缀
   const prefix = extractSKUPrefix(inputFile);
-  console.log(`提取的SKU前缀: ${prefix}`);
+  if (!prefix) {
+    console.log(`无法从文件名 ${inputFile} 提取SKU前缀`);
+    return null;
+  }
   
-  // 首先检查 batch-template.jsx 中的 targetFolderNames
+  console.log(`提取到SKU前缀: ${prefix}`);
+  
+  // 首先检查batch-template.jsx中的targetFolderNames
   const targetFolderNames = getTargetFolderNames();
-  console.log(`targetFolderNames 数组:`, targetFolderNames);
-  
   if (targetFolderNames.includes(prefix)) {
     const batchTemplatePath = path.join(jsxDir, 'batch-template.jsx');
     if (fs.existsSync(batchTemplatePath)) {
-      console.log(`在 targetFolderNames 中找到匹配的前缀 ${prefix}，使用 batch-template.jsx`);
+      console.log(`在batch-template.jsx的targetFolderNames中找到匹配的前缀: ${prefix}`);
       return batchTemplatePath;
+    } else {
+      console.error(`batch-template.jsx文件不存在: ${batchTemplatePath}`);
     }
   }
   
-  // 如果在 targetFolderNames 中没找到，搜索JSX文件夹
-  console.log(`在 targetFolderNames 中未找到 ${prefix}，搜索JSX文件夹...`);
+  // 如果在targetFolderNames中没找到，搜索JSX目录
+  console.log(`在targetFolderNames中未找到 ${prefix}，开始搜索JSX目录: ${jsxDir}`);
+  
+  if (!fs.existsSync(jsxDir)) {
+    console.error(`JSX目录不存在: ${jsxDir}`);
+    return null;
+  }
   
   try {
     const jsxFiles = fs.readdirSync(jsxDir).filter(file => file.endsWith('.jsx'));
-    console.log(`JSX文件夹中的文件:`, jsxFiles);
+    console.log(`JSX目录中找到 ${jsxFiles.length} 个JSX文件:`, jsxFiles);
     
     for (const jsxFile of jsxFiles) {
       const jsxFileName = path.basename(jsxFile, '.jsx');
@@ -93,33 +106,99 @@ function selectJSXScript(inputFile, jsxDir) {
   }
   
   console.log(`未找到匹配 ${prefix} 的JSX脚本`);
+  console.log(`提示: 请在 ${jsxDir} 目录下创建包含 "${prefix}" 的JSX脚本文件`);
+  console.log(`或者将 "${prefix}" 添加到 batch-template.jsx 的 targetFolderNames 数组中`);
   return null;
 }
 
-// 创建脚本包装器
-function createScriptWrapper(selectedScript, inputFile, outputDir) {
-  const wrapperContent = `
-// 动态生成的脚本包装器
-#include "${selectedScript}"
+// 执行Photoshop脚本的函数
+function executePhotoshopScript(scriptPath, env) {
+  return new Promise((resolve, reject) => {
+    console.log('准备执行Photoshop脚本:', scriptPath);
+    
+    // 检查脚本文件是否存在
+    if (!fs.existsSync(scriptPath)) {
+      reject(new Error(`JSX脚本文件不存在: ${scriptPath}`));
+      return;
+    }
 
-// 设置输入文件和输出目录
-var inputFile = "${inputFile.replace(/\\/g, '\\\\')}";
-var outputDir = "${outputDir.replace(/\\/g, '\\\\')}";
+    // 在macOS上使用osascript调用Photoshop
+    if (process.platform === 'darwin') {
+      const appleScript = `
+        tell application "Adobe Photoshop 2024"
+          activate
+          do javascript file "${scriptPath}"
+        end tell
+      `;
+      
+      const tempScriptPath = path.join(os.tmpdir(), `ps-script-${Date.now()}.scpt`);
+      fs.writeFileSync(tempScriptPath, appleScript, 'utf8');
+      
+      const child = spawn('osascript', [tempScriptPath], {
+        env: Object.assign({}, process.env, env),
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
 
-// 执行主要逻辑
-try {
-  // 这里可以添加具体的处理逻辑
-  $.writeln("处理文件: " + inputFile);
-  $.writeln("输出目录: " + outputDir);
-} catch (e) {
-  $.writeln("错误: " + e.toString());
-}
-`;
+      let stdout = '', stderr = '';
+      
+      child.stdout.on('data', (data) => {
+        const output = data.toString();
+        stdout += output;
+        console.log('PS输出:', output);
+      });
+      
+      child.stderr.on('data', (data) => {
+        const error = data.toString();
+        stderr += error;
+        console.error('PS错误:', error);
+      });
+      
+      child.on('error', (err) => {
+        console.error('执行AppleScript出错:', err);
+        try { fs.unlinkSync(tempScriptPath); } catch (_) {}
+        reject(err);
+      });
+      
+      child.on('close', (code) => {
+        console.log('AppleScript执行完成，退出代码:', code);
+        try { fs.unlinkSync(tempScriptPath); } catch (_) {}
+        resolve({ code, stdout, stderr });
+      });
+      
+    } else {
+      // Windows平台使用原有的spawn方式
+      const photoshopPath = env.PHOTOSHOP_PATH || 'C:\\Program Files\\Adobe\\Adobe Photoshop 2024\\Photoshop.exe';
+      const child = spawn(photoshopPath, [scriptPath], {
+        env: Object.assign({}, process.env, env),
+        windowsHide: true,
+        detached: false,
+      });
 
-  const tempDir = os.tmpdir();
-  const wrapperPath = path.join(tempDir, `ps-wrapper-${Date.now()}.jsx`);
-  fs.writeFileSync(wrapperPath, wrapperContent, 'utf8');
-  return wrapperPath;
+      let stdout = '', stderr = '';
+      
+      child.stdout && child.stdout.on('data', (data) => {
+        const output = data.toString();
+        stdout += output;
+        console.log('PS输出:', output);
+      });
+      
+      child.stderr && child.stderr.on('data', (data) => {
+        const error = data.toString();
+        stderr += error;
+        console.error('PS错误:', error);
+      });
+      
+      child.on('error', (err) => {
+        console.error('执行Photoshop出错:', err);
+        reject(err);
+      });
+      
+      child.on('close', (code) => {
+        console.log('Photoshop执行完成，退出代码:', code);
+        resolve({ code, stdout, stderr });
+      });
+    }
+  });
 }
 
 // 静态页面
@@ -133,7 +212,7 @@ app.post('/api/config', (req, res) => {
 });
 
 // 运行Photoshop任务
-app.post('/api/run', (req, res) => {
+app.post('/api/run', async (req, res) => {
   const cfg = Object.assign(readConfig(), req.body || {});
   const {
     photoshopPath,
@@ -143,10 +222,10 @@ app.post('/api/run', (req, res) => {
     headless
   } = cfg;
 
-  if (!photoshopPath || !inputDir || !outputDir) {
+  if (!inputDir || !outputDir) {
     return res.status(400).json({ 
       ok: false, 
-      msg: '缺少必要参数：photoshopPath / inputDir / outputDir' 
+      msg: '缺少必要参数：inputDir / outputDir' 
     });
   }
 
@@ -202,62 +281,60 @@ app.post('/api/run', (req, res) => {
       });
     }
 
-    // 处理第一个可处理的文件（示例）
-    const firstFile = processableFiles[0];
-    const inputFilePath = path.join(inputDir, firstFile.file);
-    
-    // 创建脚本包装器
-    const wrapperPath = createScriptWrapper(firstFile.script, inputFilePath, outputDir);
-    console.log('创建脚本包装器:', wrapperPath);
+    // 处理可处理的文件
+    let successCount = 0;
+    let errorCount = 0;
+    const results = [];
 
-    // 设置环境变量
-    const env = Object.assign({}, process.env, {
-      PS_INPUT_DIR: inputDir,
-      PS_OUTPUT_DIR: outputDir,
-      PS_RULES_JSON: rulesJsonPath || '',
-    });
+    for (const fileInfo of processableFiles) {
+      try {
+        console.log(`处理文件: ${fileInfo.file}, 使用脚本: ${fileInfo.script}`);
+        
+        // 设置环境变量
+        const env = {
+          PS_INPUT_DIR: inputDir,
+          PS_OUTPUT_DIR: outputDir,
+          PS_RULES_JSON: rulesJsonPath || '',
+          PS_CURRENT_FILE: path.join(inputDir, fileInfo.file)
+        };
 
-    // 执行Photoshop
-    console.log('执行Photoshop:', photoshopPath, wrapperPath);
-    const child = spawn(photoshopPath, [wrapperPath], {
-      env,
-      windowsHide: !!headless,
-      detached: false,
-    });
+        // 执行Photoshop脚本
+        const result = await executePhotoshopScript(fileInfo.script, env);
+        
+        if (result.code === 0) {
+          successCount++;
+          console.log(`文件 ${fileInfo.file} 处理成功`);
+        } else {
+          errorCount++;
+          console.error(`文件 ${fileInfo.file} 处理失败，退出代码: ${result.code}`);
+        }
+        
+        results.push({
+          file: fileInfo.file,
+          success: result.code === 0,
+          code: result.code,
+          stdout: result.stdout,
+          stderr: result.stderr
+        });
+        
+      } catch (error) {
+        errorCount++;
+        console.error(`处理文件 ${fileInfo.file} 时出错:`, error);
+        results.push({
+          file: fileInfo.file,
+          success: false,
+          error: error.message
+        });
+      }
+    }
 
-    let stdout = '', stderr = '';
-    child.stdout && child.stdout.on('data', d => {
-      const output = d.toString();
-      stdout += output;
-      console.log('PS输出:', output);
-    });
-    
-    child.stderr && child.stderr.on('data', d => {
-      const error = d.toString();
-      stderr += error;
-      console.error('PS错误:', error);
-    });
-
-    child.on('error', (err) => {
-      console.error('进程错误:', err);
-      // 清理临时文件
-      try { fs.unlinkSync(wrapperPath); } catch (_) {}
-      res.status(500).json({ ok: false, error: String(err), stdout, stderr });
-    });
-
-    child.on('close', (code) => {
-      console.log('Photoshop进程结束，退出代码:', code);
-      // 清理临时文件
-      try { fs.unlinkSync(wrapperPath); } catch (_) {}
-      
-      res.json({ 
-        ok: code === 0, 
-        code, 
-        stdout, 
-        stderr,
-        processedCount: processableFiles.length,
-        unprocessableCount: unprocessableFiles.length
-      });
+    res.json({ 
+      ok: true,
+      message: `处理完成: 成功 ${successCount} 个，失败 ${errorCount} 个`,
+      successCount,
+      errorCount,
+      unprocessableCount: unprocessableFiles.length,
+      results
     });
 
   } catch (error) {
