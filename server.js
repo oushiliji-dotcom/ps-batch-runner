@@ -111,10 +111,11 @@ function selectJSXScript(inputFile, jsxDir) {
   return null;
 }
 
-// 执行Photoshop脚本的函数
-function executePhotoshopScript(scriptPath, env) {
+// 执行Photoshop脚本的函数（专为Windows系统优化）
+function executePhotoshopScript(scriptPath, env, photoshopPath) {
   return new Promise((resolve, reject) => {
     console.log('准备执行Photoshop脚本:', scriptPath);
+    console.log('Photoshop路径:', photoshopPath);
     
     // 检查脚本文件是否存在
     if (!fs.existsSync(scriptPath)) {
@@ -122,82 +123,44 @@ function executePhotoshopScript(scriptPath, env) {
       return;
     }
 
-    // 在macOS上使用osascript调用Photoshop
-    if (process.platform === 'darwin') {
-      const appleScript = `
-        tell application "Adobe Photoshop 2024"
-          activate
-          do javascript file "${scriptPath}"
-        end tell
-      `;
-      
-      const tempScriptPath = path.join(os.tmpdir(), `ps-script-${Date.now()}.scpt`);
-      fs.writeFileSync(tempScriptPath, appleScript, 'utf8');
-      
-      const child = spawn('osascript', [tempScriptPath], {
-        env: Object.assign({}, process.env, env),
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      let stdout = '', stderr = '';
-      
-      child.stdout.on('data', (data) => {
-        const output = data.toString();
-        stdout += output;
-        console.log('PS输出:', output);
-      });
-      
-      child.stderr.on('data', (data) => {
-        const error = data.toString();
-        stderr += error;
-        console.error('PS错误:', error);
-      });
-      
-      child.on('error', (err) => {
-        console.error('执行AppleScript出错:', err);
-        try { fs.unlinkSync(tempScriptPath); } catch (_) {}
-        reject(err);
-      });
-      
-      child.on('close', (code) => {
-        console.log('AppleScript执行完成，退出代码:', code);
-        try { fs.unlinkSync(tempScriptPath); } catch (_) {}
-        resolve({ code, stdout, stderr });
-      });
-      
-    } else {
-      // Windows平台使用原有的spawn方式
-      const photoshopPath = env.PHOTOSHOP_PATH || 'C:\\Program Files\\Adobe\\Adobe Photoshop 2024\\Photoshop.exe';
-      const child = spawn(photoshopPath, [scriptPath], {
-        env: Object.assign({}, process.env, env),
-        windowsHide: true,
-        detached: false,
-      });
-
-      let stdout = '', stderr = '';
-      
-      child.stdout && child.stdout.on('data', (data) => {
-        const output = data.toString();
-        stdout += output;
-        console.log('PS输出:', output);
-      });
-      
-      child.stderr && child.stderr.on('data', (data) => {
-        const error = data.toString();
-        stderr += error;
-        console.error('PS错误:', error);
-      });
-      
-      child.on('error', (err) => {
-        console.error('执行Photoshop出错:', err);
-        reject(err);
-      });
-      
-      child.on('close', (code) => {
-        console.log('Photoshop执行完成，退出代码:', code);
-        resolve({ code, stdout, stderr });
-      });
+    // 检查Photoshop可执行文件是否存在
+    if (!fs.existsSync(photoshopPath)) {
+      reject(new Error(`Photoshop可执行文件不存在: ${photoshopPath}`));
+      return;
     }
+
+    // Windows平台直接调用Photoshop执行JSX脚本
+    console.log('执行命令:', photoshopPath, [scriptPath]);
+    const child = spawn(photoshopPath, [scriptPath], {
+      env: Object.assign({}, process.env, env),
+      windowsHide: false, // 显示Photoshop窗口以便用户查看处理进度
+      detached: false,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdout = '', stderr = '';
+    
+    child.stdout && child.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      console.log('PS输出:', output);
+    });
+    
+    child.stderr && child.stderr.on('data', (data) => {
+      const error = data.toString();
+      stderr += error;
+      console.error('PS错误:', error);
+    });
+    
+    child.on('error', (err) => {
+      console.error('执行Photoshop出错:', err);
+      reject(err);
+    });
+    
+    child.on('close', (code) => {
+      console.log('Photoshop执行完成，退出代码:', code);
+      resolve({ code, stdout, stderr });
+    });
   });
 }
 
@@ -281,6 +244,14 @@ app.post('/api/run', async (req, res) => {
       });
     }
 
+    // 确保Photoshop路径存在
+    if (!photoshopPath) {
+      return res.status(400).json({ 
+        ok: false, 
+        msg: '请先配置Photoshop可执行文件路径' 
+      });
+    }
+
     // 处理可处理的文件
     let successCount = 0;
     let errorCount = 0;
@@ -299,7 +270,7 @@ app.post('/api/run', async (req, res) => {
         };
 
         // 执行Photoshop脚本
-        const result = await executePhotoshopScript(fileInfo.script, env);
+        const result = await executePhotoshopScript(fileInfo.script, env, photoshopPath);
         
         if (result.code === 0) {
           successCount++;
@@ -328,12 +299,13 @@ app.post('/api/run', async (req, res) => {
       }
     }
 
-    res.json({ 
+    res.json({
       ok: true,
-      message: `处理完成: 成功 ${successCount} 个，失败 ${errorCount} 个`,
+      message: `批量处理完成！成功: ${successCount}, 失败: ${errorCount}, 无法处理: ${unprocessableFiles.length}`,
       successCount,
       errorCount,
       unprocessableCount: unprocessableFiles.length,
+      totalFiles: inputFiles.length,
       results
     });
 
