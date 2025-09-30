@@ -304,8 +304,25 @@ async function runPhotoshopScript(config) {
       
       // 执行Photoshop脚本
       await new Promise((resolve, reject) => {
+        // 设置环境变量
+        const env = {
+          ...process.env,
+          PS_INPUT_DIR: inputDir,
+          PS_OUTPUT_DIR: outputDir
+        };
+        
+        if (rulesJsonPath) {
+          env.PS_RULES_JSON = rulesJsonPath;
+        }
+        
+        sendLog(`启动Photoshop: ${photoshopPath}`);
+        sendLog(`执行脚本: ${wrapperPath}`);
+        sendLog(`输入目录: ${inputDir}`);
+        sendLog(`输出目录: ${outputDir}`);
+        
         const psProcess = spawn(photoshopPath, [wrapperPath], {
-          stdio: 'pipe'
+          stdio: 'pipe',
+          env: env
         });
         
         psProcess.stdout.on('data', (data) => {
