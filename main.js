@@ -315,9 +315,14 @@ async function runPhotoshopScript(config) {
   
   // 处理可以处理的文件
   let processedCount = 0;
+  let failedCount = 0;
+  const totalFiles = Object.keys(scriptMapping).length;
+  
+  sendLog(`开始处理 ${totalFiles} 个文件`);
+  
   for (const [file, scriptPath] of Object.entries(scriptMapping)) {
     try {
-      sendLog(`正在处理文件: ${file}`);
+      sendLog(`[${processedCount + failedCount + 1}/${totalFiles}] 正在处理文件: ${file}`);
       
       // 创建脚本包装器
       const wrapperPath = createScriptWrapper(scriptPath, inputDir, outputDir, rulesJsonPath);
@@ -330,12 +335,10 @@ async function runPhotoshopScript(config) {
         sendLog(`输出目录: ${outputDir}`);
         
         let psProcess;
+        let processTimeout;
         
         // Windows系统专用的Photoshop启动方式
         sendLog('Windows系统 - 启动Photoshop执行脚本');
-        sendLog(`脚本路径: ${wrapperPath}`);
-        sendLog(`输入目录: ${inputDir}`);
-        sendLog(`输出目录: ${outputDir}`);
         
         // 使用cmd /c来启动Photoshop，这样更可靠
         const command = `"${photoshopPath}" "${wrapperPath}"`;
@@ -348,6 +351,21 @@ async function runPhotoshopScript(config) {
         });
         
         let hasOutput = false;
+        let isResolved = false;
+        
+        // 设置超时机制 - 60秒后强制结束
+        processTimeout = setTimeout(() => {
+          if (!isResolved) {
+            sendLog(`文件 ${file} 处理超时 (60秒)，强制结束进程`);
+            try {
+              psProcess.kill('SIGTERM');
+            } catch (e) {
+              sendLog(`结束进程失败: ${e.message}`);
+            }
+            isResolved = true;
+            reject(new Error('Process timeout'));
+          }
+        }, 60000);
         
         psProcess.stdout.on('data', (data) => {
           hasOutput = true;
@@ -360,6 +378,14 @@ async function runPhotoshopScript(config) {
         });
         
         psProcess.on('close', (code) => {
+          if (isResolved) return; // 防止重复处理
+          isResolved = true;
+          
+          // 清理超时定时器
+          if (processTimeout) {
+            clearTimeout(processTimeout);
+          }
+          
           // 清理临时文件
           try {
             fs.unlinkSync(wrapperPath);
@@ -369,41 +395,52 @@ async function runPhotoshopScript(config) {
           }
           
           if (code === 0) {
-            sendLog(`文件 ${file} 处理完成 (退出码: ${code})`);
-            processedCount++;
+            sendLog(`✓ 文件 ${file} 处理完成 (退出码: ${code})`);
             resolve();
           } else {
-            sendLog(`文件 ${file} 处理失败，退出码: ${code}`);
+            sendLog(`✗ 文件 ${file} 处理失败，退出码: ${code}`);
             if (!hasOutput) {
               sendLog('警告: PS进程没有任何输出，可能启动失败');
             }
-            reject(new Error(`Process exited with code ${code}`));
+            // 不再抛出异常，而是直接resolve，让循环继续处理下一个文件
+            resolve();
           }
         });
         
         psProcess.on('error', (error) => {
+          if (isResolved) return; // 防止重复处理
+          isResolved = true;
+          
+          // 清理超时定时器
+          if (processTimeout) {
+            clearTimeout(processTimeout);
+          }
+          
           sendLog(`启动Photoshop失败: ${error.message}`);
           sendLog('可能的原因:');
           sendLog('1. Photoshop路径不正确');
           sendLog('2. Photoshop未安装或版本不兼容');
           sendLog('3. 权限不足');
-          reject(error);
+          // 不再抛出异常，而是直接resolve，让循环继续处理下一个文件
+          resolve();
         });
-        
-        // 添加超时机制
-        setTimeout(() => {
-          if (!hasOutput) {
-            sendLog('警告: 30秒内没有收到PS输出，可能存在问题');
-          }
-        }, 30000);
       });
+      
+      // 检查处理结果
+      processedCount++;
       
     } catch (error) {
       sendLog(`处理文件 ${file} 时出错: ${error.message}`);
+      failedCount++;
+      // 继续处理下一个文件，不中断整个流程
+      continue;
     }
+    
+    // 添加文件间的短暂延迟，避免资源冲突
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
-  sendLog(`处理完成！共处理了 ${processedCount} 个文件`);
+  sendLog(`处理完成！共尝试处理 ${processedCount + failedCount} 个文件，成功: ${processedCount}，失败: ${failedCount}`);
 }
 
 // IPC处理
