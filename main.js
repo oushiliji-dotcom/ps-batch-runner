@@ -337,16 +337,36 @@ async function runPhotoshopScript(config) {
         let psProcess;
         let processTimeout;
         
-        // 使用AppleScript方式执行 Photoshop 脚本
-        const appleScriptPath = path.join(__dirname, 'run-ps-script.applescript');
-        psProcess = spawn('osascript', [appleScriptPath, wrapperPath], {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 60000 // 60秒超时
-        });
+        // 根据操作系统选择不同的执行方式
+        const isWindows = process.platform === 'win32';
+        const isMac = process.platform === 'darwin';
         
-        sendLog('macOS系统 - 使用AppleScript启动Photoshop执行脚本');
-        sendLog(`AppleScript路径: ${appleScriptPath}`);
-        sendLog(`脚本路径: ${wrapperPath}`);
+        if (isWindows) {
+          // Windows系统：优先使用VBScript COM自动化
+          const vbsPath = path.join(__dirname, 'run-ps-script.vbs');
+          psProcess = spawn('cscript', ['//NoLogo', vbsPath, wrapperPath], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 60000 // 60秒超时
+          });
+          
+          sendLog('Windows系统 - 使用VBScript启动Photoshop执行脚本');
+          sendLog(`VBScript路径: ${vbsPath}`);
+          sendLog(`脚本路径: ${wrapperPath}`);
+        } else if (isMac) {
+          // macOS系统：使用AppleScript
+          const appleScriptPath = path.join(__dirname, 'run-ps-script.applescript');
+          psProcess = spawn('osascript', [appleScriptPath, wrapperPath], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 60000 // 60秒超时
+          });
+          
+          sendLog('macOS系统 - 使用AppleScript启动Photoshop执行脚本');
+          sendLog(`AppleScript路径: ${appleScriptPath}`);
+          sendLog(`脚本路径: ${wrapperPath}`);
+        } else {
+          // Linux或其他系统：不支持
+          throw new Error('当前操作系统不支持Photoshop自动化');
+        }
         
         let hasOutput = false;
         let isResolved = false;
