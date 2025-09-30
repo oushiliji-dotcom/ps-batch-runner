@@ -217,19 +217,34 @@ function handleUnprocessableFiles(inputFiles, unmatchedPrefixes, outputDir, inpu
 
 // 创建脚本包装器
 function createScriptWrapper(originalScriptPath, inputDir, outputDir, rulesJsonPath) {
+  // 确保路径使用正斜杠，适配Windows和macOS
+  const normalizedInputDir = inputDir.replace(/\\/g, '/');
+  const normalizedOutputDir = outputDir.replace(/\\/g, '/');
+  const normalizedOriginalScriptPath = originalScriptPath.replace(/\\/g, '/');
+  const normalizedRulesJsonPath = rulesJsonPath ? rulesJsonPath.replace(/\\/g, '/') : '';
+
   const wrapperContent = `
 // 自动生成的包装脚本
-#include "${originalScriptPath}"
+#include "${normalizedOriginalScriptPath}"
 
 // 设置路径变量
-var inputFolder = "${inputDir.replace(/\\/g, '\\\\')}";
-var outputFolder = "${outputDir.replace(/\\/g, '\\\\')}";
-${rulesJsonPath ? `var rulesJsonPath = "${rulesJsonPath.replace(/\\/g, '\\\\')}";` : ''}
+var inputFolder = "${normalizedInputDir}";
+var outputFolder = "${normalizedOutputDir}";
+${rulesJsonPath ? `var rulesJsonPath = "${normalizedRulesJsonPath}";` : ''}
 `;
 
-  const wrapperPath = path.join(__dirname, 'temp_wrapper.jsx');
-  fs.writeFileSync(wrapperPath, wrapperContent);
-  return wrapperPath;
+  // 使用时间戳创建唯一的临时文件名，避免并发冲突
+  const timestamp = Date.now();
+  const wrapperPath = path.join(__dirname, `temp_wrapper_${timestamp}.jsx`);
+  
+  try {
+    fs.writeFileSync(wrapperPath, wrapperContent);
+    sendLog(`创建临时脚本文件: ${wrapperPath}`);
+    return wrapperPath;
+  } catch (error) {
+    sendLog(`创建临时脚本文件失败: ${error.message}`);
+    throw error;
+  }
 }
 
 // 运行Photoshop脚本
