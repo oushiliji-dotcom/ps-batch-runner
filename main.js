@@ -233,9 +233,10 @@ var outputFolder = "${normalizedOutputDir}";
 ${rulesJsonPath ? `var rulesJsonPath = "${normalizedRulesJsonPath}";` : ''}
 `;
 
-  // 使用时间戳创建唯一的临时文件名，避免并发冲突
+  // 使用系统临时目录和时间戳创建唯一的临时文件名
+  const os = require('os');
   const timestamp = Date.now();
-  const wrapperPath = path.join(__dirname, `temp_wrapper_${timestamp}.jsx`);
+  const wrapperPath = path.join(os.tmpdir(), `ps_batch_wrapper_${timestamp}.jsx`);
   
   try {
     fs.writeFileSync(wrapperPath, wrapperContent);
@@ -247,7 +248,7 @@ ${rulesJsonPath ? `var rulesJsonPath = "${normalizedRulesJsonPath}";` : ''}
   }
 }
 
-// 运行Photoshop脚本
+// 运行Photoshop脚本 - 使用更可靠的执行方式
 async function runPhotoshopScript(config) {
   const { photoshopPath, jsxPath, inputDir, outputDir, rulesJsonPath } = config;
   
@@ -302,8 +303,18 @@ async function runPhotoshopScript(config) {
       // 创建脚本包装器
       const wrapperPath = createScriptWrapper(scriptPath, inputDir, outputDir, rulesJsonPath);
       
-      // 执行Photoshop脚本
+      // 执行Photoshop脚本 - 使用更可靠的方式
       await new Promise((resolve, reject) => {
+        sendLog(`准备启动Photoshop执行脚本`);
+        sendLog(`脚本路径: ${wrapperPath}`);
+        sendLog(`输入目录: ${inputDir}`);
+        sendLog(`输出目录: ${outputDir}`);
+        
+        let psProcess;
+        
+        // Windows系统专用的Photoshop启动方式
+        sendLog('Windows系统 - 启动Photoshop执行脚本');
+        
         // 设置环境变量
         const env = {
           ...process.env,
@@ -315,21 +326,25 @@ async function runPhotoshopScript(config) {
           env.PS_RULES_JSON = rulesJsonPath;
         }
         
-        sendLog(`启动Photoshop: ${photoshopPath}`);
-        sendLog(`执行脚本: ${wrapperPath}`);
-        sendLog(`输入目录: ${inputDir}`);
-        sendLog(`输出目录: ${outputDir}`);
+        // 使用cmd /c来启动Photoshop，这样更可靠
+        const command = `"${photoshopPath}" "${wrapperPath}"`;
+        sendLog(`执行命令: ${command}`);
         
-        const psProcess = spawn(photoshopPath, [wrapperPath], {
+        psProcess = spawn('cmd', ['/c', command], {
           stdio: 'pipe',
-          env: env
+          env: env,
+          shell: false
         });
         
+        let hasOutput = false;
+        
         psProcess.stdout.on('data', (data) => {
+          hasOutput = true;
           sendLog(`PS输出: ${data.toString()}`);
         });
         
         psProcess.stderr.on('data', (data) => {
+          hasOutput = true;
           sendLog(`PS错误: ${data.toString()}`);
         });
         
@@ -337,24 +352,39 @@ async function runPhotoshopScript(config) {
           // 清理临时文件
           try {
             fs.unlinkSync(wrapperPath);
+            sendLog(`清理临时文件: ${wrapperPath}`);
           } catch (e) {
-            // 忽略清理错误
+            sendLog(`清理临时文件失败: ${e.message}`);
           }
           
           if (code === 0) {
-            sendLog(`文件 ${file} 处理完成`);
+            sendLog(`文件 ${file} 处理完成 (退出码: ${code})`);
             processedCount++;
             resolve();
           } else {
             sendLog(`文件 ${file} 处理失败，退出码: ${code}`);
+            if (!hasOutput) {
+              sendLog('警告: PS进程没有任何输出，可能启动失败');
+            }
             reject(new Error(`Process exited with code ${code}`));
           }
         });
         
         psProcess.on('error', (error) => {
           sendLog(`启动Photoshop失败: ${error.message}`);
+          sendLog('可能的原因:');
+          sendLog('1. Photoshop路径不正确');
+          sendLog('2. Photoshop未安装或版本不兼容');
+          sendLog('3. 权限不足');
           reject(error);
         });
+        
+        // 添加超时机制
+        setTimeout(() => {
+          if (!hasOutput) {
+            sendLog('警告: 30秒内没有收到PS输出，可能存在问题');
+          }
+        }, 30000);
       });
       
     } catch (error) {
