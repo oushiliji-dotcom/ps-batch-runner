@@ -337,18 +337,16 @@ async function runPhotoshopScript(config) {
         let psProcess;
         let processTimeout;
         
-        // Windows系统专用的Photoshop启动方式
-        sendLog('Windows系统 - 启动Photoshop执行脚本');
-        
-        // 使用cmd /c来启动Photoshop，这样更可靠
-        const command = `"${photoshopPath}" "${wrapperPath}"`;
-        sendLog(`执行命令: ${command}`);
-        
-        // 不再需要环境变量，因为已经直接注入到脚本中
-        psProcess = spawn('cmd', ['/c', command], {
-          stdio: 'pipe',
-          shell: false
+        // 使用AppleScript方式执行 Photoshop 脚本
+        const appleScriptPath = path.join(__dirname, 'run-ps-script.applescript');
+        psProcess = spawn('osascript', [appleScriptPath, wrapperPath], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 60000 // 60秒超时
         });
+        
+        sendLog('macOS系统 - 使用AppleScript启动Photoshop执行脚本');
+        sendLog(`AppleScript路径: ${appleScriptPath}`);
+        sendLog(`脚本路径: ${wrapperPath}`);
         
         let hasOutput = false;
         let isResolved = false;
