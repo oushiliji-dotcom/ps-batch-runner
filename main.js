@@ -215,32 +215,51 @@ function handleUnprocessableFiles(inputFiles, unmatchedPrefixes, outputDir, inpu
   return movedCount;
 }
 
-// 创建脚本包装器
+// 创建脚本包装器 - 改进版本，直接注入变量而不依赖环境变量
 function createScriptWrapper(originalScriptPath, inputDir, outputDir, rulesJsonPath) {
-  // 确保路径使用正斜杠，适配Windows和macOS
-  const normalizedInputDir = inputDir.replace(/\\/g, '/');
-  const normalizedOutputDir = outputDir.replace(/\\/g, '/');
-  const normalizedOriginalScriptPath = originalScriptPath.replace(/\\/g, '/');
-  const normalizedRulesJsonPath = rulesJsonPath ? rulesJsonPath.replace(/\\/g, '/') : '';
-
-  const wrapperContent = `
-// 自动生成的包装脚本
-#include "${normalizedOriginalScriptPath}"
-
-// 设置路径变量
-var inputFolder = "${normalizedInputDir}";
-var outputFolder = "${normalizedOutputDir}";
-${rulesJsonPath ? `var rulesJsonPath = "${normalizedRulesJsonPath}";` : ''}
-`;
-
   // 使用系统临时目录和时间戳创建唯一的临时文件名
   const os = require('os');
   const timestamp = Date.now();
   const wrapperPath = path.join(os.tmpdir(), `ps_batch_wrapper_${timestamp}.jsx`);
   
   try {
-    fs.writeFileSync(wrapperPath, wrapperContent);
-    sendLog(`创建临时脚本文件: ${wrapperPath}`);
+    // 读取原始脚本内容
+    const originalScript = fs.readFileSync(originalScriptPath, 'utf8');
+    
+    // 创建包装脚本，直接注入变量而不依赖环境变量
+    const wrapperScript = `
+// 自动生成的包装脚本
+// 直接设置变量，避免环境变量问题
+
+// 设置路径变量
+var PS_INPUT_DIR = "${inputDir.replace(/\\/g, '\\\\')}";
+var PS_OUTPUT_DIR = "${outputDir.replace(/\\/g, '\\\\')}";
+${rulesJsonPath ? `var PS_RULES_JSON = "${rulesJsonPath.replace(/\\/g, '\\\\')}";` : 'var PS_RULES_JSON = "";'}
+
+// 重写getenv函数，直接返回预设的变量值
+function getenv(key) {
+  switch(key) {
+    case 'PS_INPUT_DIR': return PS_INPUT_DIR;
+    case 'PS_OUTPUT_DIR': return PS_OUTPUT_DIR;
+    case 'PS_RULES_JSON': return PS_RULES_JSON;
+    default: return '';
+  }
+}
+
+// 将getenv函数添加到全局$对象
+$.getenv = getenv;
+
+// 执行原始脚本
+${originalScript}
+`;
+    
+    // 写入包装脚本，使用UTF-8编码
+    fs.writeFileSync(wrapperPath, wrapperScript, 'utf8');
+    
+    sendLog(`创建包装脚本: ${wrapperPath}`);
+    sendLog(`输入目录: ${inputDir}`);
+    sendLog(`输出目录: ${outputDir}`);
+    
     return wrapperPath;
   } catch (error) {
     sendLog(`创建临时脚本文件失败: ${error.message}`);
@@ -314,25 +333,17 @@ async function runPhotoshopScript(config) {
         
         // Windows系统专用的Photoshop启动方式
         sendLog('Windows系统 - 启动Photoshop执行脚本');
-        
-        // 设置环境变量
-        const env = {
-          ...process.env,
-          PS_INPUT_DIR: inputDir,
-          PS_OUTPUT_DIR: outputDir
-        };
-        
-        if (rulesJsonPath) {
-          env.PS_RULES_JSON = rulesJsonPath;
-        }
+        sendLog(`脚本路径: ${wrapperPath}`);
+        sendLog(`输入目录: ${inputDir}`);
+        sendLog(`输出目录: ${outputDir}`);
         
         // 使用cmd /c来启动Photoshop，这样更可靠
         const command = `"${photoshopPath}" "${wrapperPath}"`;
         sendLog(`执行命令: ${command}`);
         
+        // 不再需要环境变量，因为已经直接注入到脚本中
         psProcess = spawn('cmd', ['/c', command], {
           stdio: 'pipe',
-          env: env,
           shell: false
         });
         
