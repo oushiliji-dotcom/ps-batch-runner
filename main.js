@@ -46,27 +46,55 @@ function saveConfig(config) {
 function scanDirectory(dirPath) {
   try {
     sendLog(`正在扫描目录: ${dirPath}`);
-    const files = fs.readdirSync(dirPath);
-    sendLog(`目录中找到 ${files.length} 个项目`);
+    const items = fs.readdirSync(dirPath);
+    sendLog(`目录中找到 ${items.length} 个项目`);
     
-    const imageFiles = files.filter(file => {
-      const filePath = path.join(dirPath, file);
-      const isFile = fs.statSync(filePath).isFile();
-      const isImageFile = /\.(jpg|jpeg|png|tiff|tif|psd|bmp)$/i.test(file);
+    const allImageFiles = [];
+    
+    items.forEach(item => {
+      const itemPath = path.join(dirPath, item);
+      const stat = fs.statSync(itemPath);
       
-      if (isFile && isImageFile) {
-        sendLog(`找到图片文件: ${file}`);
-        return true;
-      } else if (isFile) {
-        sendLog(`跳过非图片文件: ${file}`);
-      } else {
-        sendLog(`跳过目录: ${file}`);
+      if (stat.isDirectory()) {
+        sendLog(`扫描子文件夹: ${item}`);
+        try {
+          const subFiles = fs.readdirSync(itemPath);
+          const imageFiles = subFiles.filter(file => {
+            const filePath = path.join(itemPath, file);
+            const isFile = fs.statSync(filePath).isFile();
+            const isImageFile = /\.(jpg|jpeg|png|tiff|tif|psd|bmp)$/i.test(file);
+            
+            if (isFile && isImageFile) {
+              sendLog(`  找到图片文件: ${item}/${file}`);
+              return true;
+            } else if (isFile) {
+              sendLog(`  跳过非图片文件: ${item}/${file}`);
+            }
+            return false;
+          });
+          
+          // 将子文件夹中的图片文件添加到总列表，保持相对路径
+          imageFiles.forEach(file => {
+            allImageFiles.push(path.join(item, file));
+          });
+          
+          sendLog(`  子文件夹 ${item} 中找到 ${imageFiles.length} 个图片文件`);
+        } catch (subError) {
+          sendLog(`  扫描子文件夹 ${item} 失败: ${subError.message}`);
+        }
+      } else if (stat.isFile()) {
+        const isImageFile = /\.(jpg|jpeg|png|tiff|tif|psd|bmp)$/i.test(item);
+        if (isImageFile) {
+          sendLog(`找到根目录图片文件: ${item}`);
+          allImageFiles.push(item);
+        } else {
+          sendLog(`跳过根目录非图片文件: ${item}`);
+        }
       }
-      return false;
     });
     
-    sendLog(`共找到 ${imageFiles.length} 个图片文件`);
-    return imageFiles;
+    sendLog(`总共找到 ${allImageFiles.length} 个图片文件`);
+    return allImageFiles;
   } catch (error) {
     sendLog(`扫描目录失败: ${error.message}`);
     console.error('扫描目录失败:', error);
@@ -97,7 +125,9 @@ function getTargetFolderNames(jsxPath) {
 
 // 提取SKU前缀
 function extractSKUPrefix(filename) {
-  const match = filename.match(/^([A-Z]+)/);
+  // 如果文件名包含路径分隔符，只取文件名部分
+  const basename = path.basename(filename);
+  const match = basename.match(/^([A-Z]+)/);
   return match ? match[1] : null;
 }
 
