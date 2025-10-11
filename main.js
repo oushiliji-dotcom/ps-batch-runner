@@ -369,12 +369,23 @@ async function runPhotoshopScript(config) {
           
           // 检查VBScript文件是否存在
           if (!fs.existsSync(vbsPath)) {
-            throw new Error(`VBScript文件不存在: ${vbsPath}`);
+            const errorMsg = `VBScript文件不存在: ${vbsPath}`;
+            sendLog(`错误: ${errorMsg}`);
+            sendLog(`当前工作目录: ${__dirname}`);
+            sendLog(`尝试列出目录内容:`);
+            try {
+              const files = fs.readdirSync(__dirname);
+              sendLog(`目录文件: ${files.filter(f => f.endsWith('.vbs')).join(', ')}`);
+            } catch (e) {
+              sendLog(`无法读取目录: ${e.message}`);
+            }
+            throw new Error(errorMsg);
           }
           
           sendLog('Windows系统 - 使用VBScript启动Photoshop执行脚本');
           sendLog(`VBScript路径: ${vbsPath}`);
           sendLog(`脚本路径: ${wrapperPath}`);
+          sendLog(`VBScript文件存在性验证: ${fs.existsSync(vbsPath) ? '通过' : '失败'}`);
           
           // 直接使用VBScript，不设置复杂的错误处理
           psProcess = spawn('cscript', ['//NoLogo', vbsPath, wrapperPath], {
@@ -465,7 +476,21 @@ async function runPhotoshopScript(config) {
             sendLog(`✗ 文件 ${file} 处理失败，退出码: ${code}`);
             if (!hasOutput) {
               sendLog('警告: PS进程没有任何输出，可能启动失败');
+              sendLog('建议检查:');
+              sendLog('1. Photoshop是否正确安装');
+              sendLog('2. JSX脚本语法是否正确');
+              sendLog('3. 输入输出目录是否存在且有权限');
             }
+            
+            // 分析退出码
+            if (code === 1) {
+              sendLog('退出码1: 通常表示脚本执行错误或Photoshop内部错误');
+            } else if (code === 2) {
+              sendLog('退出码2: 可能是文件访问权限问题');
+            } else if (code > 0) {
+              sendLog(`退出码${code}: 非正常退出，请检查错误日志`);
+            }
+            
             // 不再抛出异常，而是直接resolve，让循环继续处理下一个文件
             resolve();
           }

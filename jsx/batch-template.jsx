@@ -17,8 +17,18 @@ $.writeln('=== batch-template.jsx开始执行 ===');
 
 // 包装在 try-catch 中以捕获具体错误
 try {
-  // 读取环境变量设置
-  function getenv(k){ try { return $.getenv(k) || ''; } catch(e){ return ''; } }
+  // 读取环境变量设置 - 增强版本
+  function getenv(k){ 
+    try { 
+      var value = $.getenv(k) || ''; 
+      $.writeln('环境变量 ' + k + ': ' + (value ? value : '(空值)'));
+      return value;
+    } catch(e){ 
+      $.writeln('读取环境变量 ' + k + ' 失败: ' + e.toString());
+      return ''; 
+    } 
+  }
+  
   var INPUT = getenv('PS_INPUT_DIR');
   var OUTPUT = getenv('PS_OUTPUT_DIR');
   var RULES = getenv('PS_RULES_JSON');
@@ -26,12 +36,28 @@ try {
   $.writeln('读取到输入目录: ' + INPUT);
   $.writeln('读取到输出目录: ' + OUTPUT);
 
+  // 如果环境变量为空，尝试使用默认值或提示用户
   if(!INPUT || !OUTPUT){ 
-    throw new Error('未能获取输入或输出目录环境变量！');
+    $.writeln('警告：环境变量为空，尝试使用备用方案');
+    
+    // 备用方案：尝试从当前脚本目录推断路径
+    if(!INPUT) {
+      var scriptFile = new File($.fileName);
+      var scriptFolder = scriptFile.parent.parent; // 上两级目录
+      INPUT = scriptFolder.fsName;
+      $.writeln('使用脚本目录作为输入目录: ' + INPUT);
+    }
+    
+    if(!OUTPUT) {
+      OUTPUT = INPUT + '/output';
+      $.writeln('使用默认输出目录: ' + OUTPUT);
+    }
   }
 
   var inputFolder = new Folder(INPUT);
   var outputFolder = new Folder(OUTPUT);
+  
+  $.writeln('检查输入文件夹存在性: ' + inputFolder.exists);
   if(!inputFolder.exists){ 
     throw new Error('输入目录不存在: '+INPUT); 
   }
@@ -189,13 +215,22 @@ try {
   var targetFolderNames = ['M001MT','M002MT','W013GZ','W003MM','W013LS','M013MT','W013LM','W036MZ','W003MN','C013SS','C012SS','W003SS','W034MW','W011MW','W011MR','W033BM','W011MB','W013SS','W034MW','A012SS','A010MZ','W010MZ','A012MS','A013MS','A037MS','W013WZ','W058MH','M003MT','A013BZ','W034ML','W010BM','W010LZ','A013WZ','P013WZ','A050DA','A050DB','A050DC','C086MU','M013ST','A060MB','A060MC','A060ME','A050DG','A060MG','A060MA','A050CB','A050CA','A050AA','A050AB','A060MH','A060MI','P003OL','M023AT','M023BT','M024BT','M024CT','M024MT','M056MT','M109AT','M109MT','M115MT','W032BT','W032BM','W058MV','W010MM','A060MD','M029MS','W012TA','W012TB','W012TC','A013SA','W003LS','A060AC','W121MA','W121MS','A060ML'];
 
   $.writeln('目标文件夹列表包含 ' + targetFolderNames.length + ' 个项目');
+  $.writeln('targetFolderNames数组验证: ' + (targetFolderNames.length > 0 ? '正常' : '异常-数组为空'));
+  
+  // 输出前几个项目用于调试
+  if(targetFolderNames.length > 0) {
+    $.writeln('前5个目标文件夹: ' + targetFolderNames.slice(0, 5).join(', '));
+  }
 
   // 执行：先在 INPUT 下查找匹配的目标文件夹，若找到则按动作批处理，否则执行通用模板处理
   var matched = findAllFoldersByName(INPUT, targetFolderNames);
+  $.writeln('搜索完成，找到匹配文件夹数量: ' + matched.length);
+  
   if(matched.length > 0){
     $.writeln('找到匹配的文件夹，开始批处理');
     for(var k=0;k<matched.length;k++){
       var folder = matched[k];
+      $.writeln('处理匹配的文件夹: ' + folder.name + ' (路径: ' + folder.fsName + ')');
       var actionSetName = 'TIN';
       var actionName = folder.name;      // 根据文件夹名称选择动作
       var actionName2 = actionName + '-'; // 高大于宽时的动作（约定命名）
@@ -249,7 +284,24 @@ try {
 
 } catch (e) {
   // 捕获任何错误并打印出来！！！
-  $.writeln('!!! JSX脚本发生严重错误: ' + e.toString() + ' (行号: ' + e.line + ')');
+  var errorMsg = '!!! JSX脚本发生严重错误: ' + e.toString();
+  if (e.line) {
+    errorMsg += ' (行号: ' + e.line + ')';
+  }
+  if (e.fileName) {
+    errorMsg += ' (文件: ' + e.fileName + ')';
+  }
+  $.writeln(errorMsg);
+  
+  // 打印调试信息
+  $.writeln('调试信息:');
+  $.writeln('- 输入目录: ' + (typeof INPUT !== 'undefined' ? INPUT : '未定义'));
+  $.writeln('- 输出目录: ' + (typeof OUTPUT !== 'undefined' ? OUTPUT : '未定义'));
+  $.writeln('- 规则文件: ' + (typeof RULES_JSON !== 'undefined' ? RULES_JSON : '未定义'));
+  
+  // 设置错误状态
+  $.setenv('PS_LAST_RUN_ERROR', errorMsg);
+  
   // 抛出错误，让PS以非零退出码退出
   throw e;
 }
