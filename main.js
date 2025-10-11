@@ -127,8 +127,16 @@ function getTargetFolderNames(jsxPath) {
 function extractSKUPrefix(filename) {
   // 如果文件名包含路径分隔符，只取文件名部分
   const basename = path.basename(filename);
-  const match = basename.match(/^([A-Z]+)/);
-  return match ? match[1] : null;
+  // 修改正则表达式，提取完整的SKU前缀（字母+数字+字母）
+  // 例如：M001MT, W053LM, A060AC 等
+  const match = basename.match(/^([A-Z]\d{3}[A-Z]{2})/);
+  if (match) {
+    return match[1];
+  }
+  
+  // 如果没有匹配到完整格式，尝试提取开头的字母部分作为备用
+  const fallbackMatch = basename.match(/^([A-Z]+)/);
+  return fallbackMatch ? fallbackMatch[1] : null;
 }
 
 // 选择JSX脚本
@@ -150,32 +158,39 @@ function selectJSXScript(inputFiles, jsxPath) {
       continue;
     }
 
+    sendLog(`文件 ${file} 提取的SKU前缀: ${prefix}`);
+
     if (targetFolderNames.includes(prefix)) {
       if (fs.existsSync(batchTemplatePath)) {
         scriptMapping[file] = batchTemplatePath;
-        sendLog(`文件 ${file} 使用 batch-template.jsx`);
+        sendLog(`文件 ${file} (前缀: ${prefix}) 使用 batch-template.jsx`);
       } else {
         sendLog(`batch-template.jsx 不存在: ${batchTemplatePath}`);
         unmatchedPrefixes.add(prefix);
       }
     } else {
-      // 搜索JSX目录中的其他脚本
+      // 搜索JSX目录中的其他脚本 - 使用精确匹配
       try {
         const jsxFiles = fs.readdirSync(jsxPath).filter(f => f.endsWith('.jsx'));
         let found = false;
         
         for (const jsxFile of jsxFiles) {
-          if (jsxFile.toLowerCase().includes(prefix.toLowerCase())) {
+          // 移除文件扩展名进行比较
+          const jsxBaseName = jsxFile.replace('.jsx', '');
+          
+          // 精确匹配：JSX文件名必须完全等于SKU前缀
+          if (jsxBaseName === prefix) {
             const scriptPath = path.join(jsxPath, jsxFile);
             scriptMapping[file] = scriptPath;
-            sendLog(`文件 ${file} 使用 ${jsxFile}`);
+            sendLog(`文件 ${file} (前缀: ${prefix}) 精确匹配使用 ${jsxFile}`);
             found = true;
             break;
           }
         }
         
         if (!found) {
-          sendLog(`未找到匹配的JSX脚本: ${prefix}`);
+          sendLog(`未找到精确匹配的JSX脚本: ${prefix} (在 ${jsxFiles.length} 个JSX文件中)`);
+          sendLog(`可用的JSX文件: ${jsxFiles.join(', ')}`);
           unmatchedPrefixes.add(prefix);
         }
       } catch (error) {
@@ -344,14 +359,44 @@ async function runPhotoshopScript(config) {
         if (isWindows) {
           // Windows系统：优先使用VBScript COM自动化
           const vbsPath = path.join(__dirname, 'run-ps-script.vbs');
-          psProcess = spawn('cscript', ['//NoLogo', vbsPath, wrapperPath], {
-            stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: 60000 // 60秒超时
-          });
+          
+          // 检查VBScript文件是否存在
+          if (!fs.existsSync(vbsPath)) {
+            throw new Error(`VBScript文件不存在: ${vbsPath}`);
+          }
           
           sendLog('Windows系统 - 使用VBScript启动Photoshop执行脚本');
           sendLog(`VBScript路径: ${vbsPath}`);
           sendLog(`脚本路径: ${wrapperPath}`);
+          
+          psProcess = spawn('cscript', ['//NoLogo', vbsPath, wrapperPath], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 60000, // 60秒超时
+            windowsHide: true // 隐藏命令行窗口
+          });
+          
+          // 如果VBScript失败，尝试PowerShell备用方案
+          psProcess.on('error', (vbsError) => {
+            sendLog(`VBScript执行失败: ${vbsError.message}`);
+            sendLog('尝试使用PowerShell备用方案...');
+            
+            const ps1Path = path.join(__dirname, 'run-ps-script-powershell.ps1');
+            if (fs.existsSync(ps1Path)) {
+              psProcess = spawn('powershell', [
+                '-ExecutionPolicy', 'Bypass',
+                '-File', ps1Path,
+                wrapperPath
+              ], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                timeout: 60000,
+                windowsHide: true
+              });
+              sendLog(`PowerShell备用方案启动: ${ps1Path}`);
+            } else {
+              sendLog(`PowerShell脚本不存在: ${ps1Path}`);
+            }
+          });
+          
         } else if (isMac) {
           // macOS系统：使用AppleScript
           const appleScriptPath = path.join(__dirname, 'run-ps-script.applescript');
@@ -387,17 +432,25 @@ async function runPhotoshopScript(config) {
         
         psProcess.stdout.on('data', (data) => {
           hasOutput = true;
-          sendLog(`PS输出: ${data.toString()}`);
+          const output = data.toString().trim();
+          if (output) {
+            sendLog(`PS输出: ${output}`);
+          }
         });
         
         psProcess.stderr.on('data', (data) => {
           hasOutput = true;
-          sendLog(`PS错误: ${data.toString()}`);
+          const error = data.toString().trim();
+          if (error) {
+            sendLog(`PS错误: ${error}`);
+          }
         });
         
-        psProcess.on('close', (code) => {
+        psProcess.on('close', (code, signal) => {
           if (isResolved) return; // 防止重复处理
           isResolved = true;
+          
+          sendLog(`PS进程退出 - 代码: ${code}, 信号: ${signal}`);
           
           // 清理超时定时器
           if (processTimeout) {
@@ -407,7 +460,7 @@ async function runPhotoshopScript(config) {
           // 清理临时文件
           try {
             fs.unlinkSync(wrapperPath);
-            sendLog(`清理临时文件: ${wrapperPath}`);
+            sendLog(`已清理临时文件: ${wrapperPath}`);
           } catch (e) {
             sendLog(`清理临时文件失败: ${e.message}`);
           }
@@ -434,11 +487,18 @@ async function runPhotoshopScript(config) {
             clearTimeout(processTimeout);
           }
           
-          sendLog(`启动Photoshop失败: ${error.message}`);
-          sendLog('可能的原因:');
-          sendLog('1. Photoshop路径不正确');
-          sendLog('2. Photoshop未安装或版本不兼容');
-          sendLog('3. 权限不足');
+          sendLog(`PS进程启动失败: ${error.message}`);
+          sendLog(`错误详情: ${error.stack || error.toString()}`);
+          
+          // 分析可能的原因
+          if (error.code === 'ENOENT') {
+            sendLog('可能原因: 系统未找到cscript.exe或PowerShell');
+          } else if (error.code === 'EACCES') {
+            sendLog('可能原因: 权限不足，请以管理员身份运行');
+          } else if (error.message.includes('timeout')) {
+            sendLog('可能原因: Photoshop响应超时，可能版本不兼容或系统资源不足');
+          }
+          
           // 不再抛出异常，而是直接resolve，让循环继续处理下一个文件
           resolve();
         });
