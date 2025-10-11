@@ -1,25 +1,31 @@
 {
-  "name": "ps-batch-runner",
+  "name": "design-workshop",
   "version": "0.1.0",
   "private": true,
-  "description": "本地 Windows 用 Photoshop JSX 批量脚本运行工具（含简易Web UI）",
+  "description": "设计工坊 - 本地 Photoshop JSX 批处理辅助与简易Web UI",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win --publish=never",
     "build": "npm run build:win",
-    "installer:win": "iscc installer.iss"
+    "installer:win": "iscc installer.iss",
+    "icons": "node scripts/generate-icons.js"
   },
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  },
   "devDependencies": {
     "electron": "^27.0.0",
-    "electron-builder": "^24.6.4"
+    "electron-builder": "^24.6.4",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.4"
   },
   "build": {
-    "appId": "com.psbatchrunner.app",
-    "productName": "PS Batch Runner",
+    "appId": "com.designworkshop.app",
+    "productName": "设计工坊",
     "directories": {
       "output": "dist"
     },
@@ -28,11 +34,12 @@
       "preload.js",
       "web/**/*",
       "jsx/**/*",
-      "config.json"
+      "config.json",
+      "icons/**/*"
     ],
     "win": {
       "target": "nsis",
-      "icon": "icon.ico"
+      "icon": "icons/app-icon.ico"
     },
     "nsis": {
       "oneClick": false,

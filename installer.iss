@@ -1,10 +1,10 @@
-; Inno Setup Script for PS Batch Runner (Windows Installer)
+; Inno Setup Script for 设计工坊 (Windows Installer)
 ; 需要在 Windows 上安装 Inno Setup 6+，右键本文件 -> Compile 即可生成安装包
 
-#define MyAppName "PS Batch Runner"
+#define MyAppName "设计工坊"
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher ""
-#define MyAppExeName "PSBatchRunner.exe"
+#define MyAppExeName "DesignWorkshop.exe"
 
 [Setup]
 AppId={{A2A4E3B5-12B1-4F9A-9F6E-2D6E7A2F10A1}}
@@ -14,7 +14,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={pf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=dist
-OutputBaseFilename=PSBatchRunner-Setup
+OutputBaseFilename=DesignWorkshop-Setup
 ArchitecturesInstallIn64BitMode=x64
 Compression=lzma2
 SolidCompression=yes

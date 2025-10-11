@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+  </defs>
+
+  <!-- 背景圆角卡片 -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="#F7F3FF"/>
+
+  <!-- 仙女棒主体（纯色，避免回退为黑色） -->
+  <g>
+    <!-- 棒身 -->
+    <path d="M40 88 L88 40" stroke="#8E5BFF" stroke-width="8" stroke-linecap="round"/>
+    <!-- 星形顶端 -->
+    <g transform="translate(88,40)">
+      <polygon points="0,-10 2,-3 10,-3 4,2 6,10 0,5 -6,10 -4,2 -10,-3 -2,-3" fill="#D7C7FF" stroke="#B48CFF" stroke-width="1.5"/>
+    </g>
+    <!-- 闪光粒子 -->
+    <circle cx="72" cy="56" r="3" fill="#B48CFF" opacity="0.9"/>
+    <circle cx="82" cy="46" r="2" fill="#C8B3FF"/>
+    <circle cx="92" cy="52" r="2.5" fill="#A982FF"/>
+    <circle cx="78" cy="66" r="1.8" fill="#D6C7FF"/>
+  </g>
+
+  <!-- 边框高光 -->
+  <rect x="8" y="8" width="112" height="112" rx="24" stroke="#B48CFF" stroke-opacity="0.35"/>
+</svg>

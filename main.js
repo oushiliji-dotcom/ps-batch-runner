@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -151,6 +151,10 @@ function selectJSXScript(inputFiles, jsxPath) {
   const scriptMapping = {};
   const unmatchedPrefixes = new Set();
 
+  sendLog(`从batch-template.jsx读取到的targetFolderNames: ${JSON.stringify(targetFolderNames)}`);
+  sendLog(`batch-template.jsx路径: ${batchTemplatePath}`);
+  sendLog(`batch-template.jsx是否存在: ${fs.existsSync(batchTemplatePath)}`);
+
   for (const file of inputFiles) {
     const prefix = extractSKUPrefix(file);
     if (!prefix) {
@@ -160,19 +164,23 @@ function selectJSXScript(inputFiles, jsxPath) {
 
     sendLog(`文件 ${file} 提取的SKU前缀: ${prefix}`);
 
+    // 优先检查是否在targetFolderNames中，如果是则使用batch-template.jsx
     if (targetFolderNames.includes(prefix)) {
       if (fs.existsSync(batchTemplatePath)) {
         scriptMapping[file] = batchTemplatePath;
-        sendLog(`文件 ${file} (前缀: ${prefix}) 使用 batch-template.jsx`);
+        sendLog(`✓ 文件 ${file} (前缀: ${prefix}) 在targetFolderNames中，使用 batch-template.jsx`);
       } else {
-        sendLog(`batch-template.jsx 不存在: ${batchTemplatePath}`);
+        sendLog(`✗ batch-template.jsx 不存在: ${batchTemplatePath}`);
         unmatchedPrefixes.add(prefix);
       }
     } else {
-      // 搜索JSX目录中的其他脚本 - 使用精确匹配
+      // 如果不在targetFolderNames中，搜索JSX目录中的其他脚本 - 使用精确匹配
+      sendLog(`前缀 ${prefix} 不在targetFolderNames中，搜索独立JSX文件`);
       try {
-        const jsxFiles = fs.readdirSync(jsxPath).filter(f => f.endsWith('.jsx'));
+        const jsxFiles = fs.readdirSync(jsxPath).filter(f => f.endsWith('.jsx') && f !== 'batch-template.jsx');
         let found = false;
+        
+        sendLog(`可用的独立JSX文件: ${jsxFiles.join(', ')}`);
         
         for (const jsxFile of jsxFiles) {
           // 移除文件扩展名进行比较
@@ -182,15 +190,14 @@ function selectJSXScript(inputFiles, jsxPath) {
           if (jsxBaseName === prefix) {
             const scriptPath = path.join(jsxPath, jsxFile);
             scriptMapping[file] = scriptPath;
-            sendLog(`文件 ${file} (前缀: ${prefix}) 精确匹配使用 ${jsxFile}`);
+            sendLog(`✓ 文件 ${file} (前缀: ${prefix}) 精确匹配使用独立脚本 ${jsxFile}`);
             found = true;
             break;
           }
         }
         
         if (!found) {
-          sendLog(`未找到精确匹配的JSX脚本: ${prefix} (在 ${jsxFiles.length} 个JSX文件中)`);
-          sendLog(`可用的JSX文件: ${jsxFiles.join(', ')}`);
+          sendLog(`✗ 未找到精确匹配的JSX脚本: ${prefix}`);
           unmatchedPrefixes.add(prefix);
         }
       } catch (error) {
@@ -369,32 +376,12 @@ async function runPhotoshopScript(config) {
           sendLog(`VBScript路径: ${vbsPath}`);
           sendLog(`脚本路径: ${wrapperPath}`);
           
+          // 直接使用VBScript，不设置复杂的错误处理
           psProcess = spawn('cscript', ['//NoLogo', vbsPath, wrapperPath], {
             stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: 60000, // 60秒超时
-            windowsHide: true // 隐藏命令行窗口
-          });
-          
-          // 如果VBScript失败，尝试PowerShell备用方案
-          psProcess.on('error', (vbsError) => {
-            sendLog(`VBScript执行失败: ${vbsError.message}`);
-            sendLog('尝试使用PowerShell备用方案...');
-            
-            const ps1Path = path.join(__dirname, 'run-ps-script-powershell.ps1');
-            if (fs.existsSync(ps1Path)) {
-              psProcess = spawn('powershell', [
-                '-ExecutionPolicy', 'Bypass',
-                '-File', ps1Path,
-                wrapperPath
-              ], {
-                stdio: ['pipe', 'pipe', 'pipe'],
-                timeout: 60000,
-                windowsHide: true
-              });
-              sendLog(`PowerShell备用方案启动: ${ps1Path}`);
-            } else {
-              sendLog(`PowerShell脚本不存在: ${ps1Path}`);
-            }
+            timeout: 120000, // 增加到120秒超时
+            windowsHide: true, // 隐藏命令行窗口
+            shell: true // 使用shell执行，提高兼容性
           });
           
         } else if (isMac) {
@@ -416,19 +403,25 @@ async function runPhotoshopScript(config) {
         let hasOutput = false;
         let isResolved = false;
         
-        // 设置超时机制 - 60秒后强制结束
+        // 设置超时机制 - 120秒后强制结束
         processTimeout = setTimeout(() => {
           if (!isResolved) {
-            sendLog(`文件 ${file} 处理超时 (60秒)，强制结束进程`);
+            sendLog(`文件 ${file} 处理超时 (120秒)，强制结束进程`);
             try {
               psProcess.kill('SIGTERM');
+              // 如果SIGTERM无效，使用SIGKILL
+              setTimeout(() => {
+                if (!psProcess.killed) {
+                  psProcess.kill('SIGKILL');
+                }
+              }, 5000);
             } catch (e) {
               sendLog(`结束进程失败: ${e.message}`);
             }
             isResolved = true;
             reject(new Error('Process timeout'));
           }
-        }, 60000);
+        }, 120000);
         
         psProcess.stdout.on('data', (data) => {
           hasOutput = true;
@@ -567,6 +560,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: '设计工坊',
+    icon: nativeImage.createFromPath(path.join(__dirname, 'icons', 'app-icon.png')),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
