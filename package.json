@@ -33,13 +33,18 @@
       "main.js",
       "preload.js",
       "web/**/*",
-      "jsx/**/*",
       "config.json",
       "icons/**/*",
       "*.vbs",
       "*.bat",
       "*.applescript",
       "*.ps1"
+    ],
+    "extraResources": [
+      {
+        "from": "jsx",
+        "to": "jsx"
+      }
     ],
     "win": {
       "target": [
