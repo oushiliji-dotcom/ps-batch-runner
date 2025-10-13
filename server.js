@@ -167,6 +167,17 @@ function executePhotoshopScript(scriptPath, env, photoshopPath) {
 // 静态页面
 app.use('/', express.static(path.join(__dirname, 'web')));
 
+// 测试API：获取目标文件夹名列表
+app.get('/api/target-folders', (req, res) => {
+  const folders = getTargetFolderNames();
+  res.json({ 
+    success: true, 
+    folders: folders,
+    count: folders.length,
+    message: `成功读取到 ${folders.length} 个目标文件夹名`
+  });
+});
+
 // API路由
 app.get('/api/config', (req, res) => res.json(readConfig()));
 app.post('/api/config', (req, res) => { 
