@@ -35,7 +35,11 @@
       "web/**/*",
       "jsx/**/*",
       "config.json",
-      "icons/**/*"
+      "icons/**/*",
+      "*.vbs",
+      "*.bat",
+      "*.applescript",
+      "*.ps1"
     ],
     "win": {
       "target": [
