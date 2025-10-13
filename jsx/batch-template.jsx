@@ -86,9 +86,25 @@ try {
 
   // 从文件名中提取SKU前缀的函数
   function extractSKUPrefix(filename) {
-    // 匹配类似 A060MB-TX-001.png 中的 A060MB 部分
-    var match = filename.match(/^([A-Z]\d{3}[A-Z]{2})/);
-    return match ? match[1] : null;
+    // 匹配类似 A060MB-TX-001.png 或 M001MT-001.jpg 中的 SKU 部分
+    // 支持多种格式：字母+数字+字母的组合
+    var patterns = [
+      /^([A-Z]\d{3}[A-Z]{2})/,  // 原始模式：A060MB
+      /^([A-Z]\d{3}[A-Z]{1,3})/, // 扩展模式：支持1-3个字母结尾
+      /^([A-Z]{1,2}\d{3}[A-Z]{1,3})/ // 更灵活的模式
+    ];
+    
+    for (var i = 0; i < patterns.length; i++) {
+      var match = filename.match(patterns[i]);
+      if (match) {
+        var extracted = match[1];
+        $.writeln('文件 ' + filename + ' 提取SKU: ' + extracted + ' (使用模式' + (i+1) + ')');
+        return extracted;
+      }
+    }
+    
+    $.writeln('警告: 无法从文件名 ' + filename + ' 中提取SKU前缀');
+    return null;
   }
 
   // 扫描输入目录中的所有图片文件并按SKU前缀分组
@@ -176,15 +192,15 @@ try {
     }
   }
 
-  // 用户提供的目标SKU前缀列表（原样集成）
-  var targetSKUPrefixes = ['M001MT','M002MT','W013GZ','W003MM','W013LS','M013MT','W013LM','W036MZ','W003MN','C013SS','C012SS','W003SS','W034MW','W011MW','W011MR','W033BM','W011MB','W013SS','W034MW','A012SS','A010MZ','W010MZ','A012MS','A013MS','A037MS','W013WZ','W058MH','M003MT','A013BZ','W034ML','W010BM','W010LZ','A013WZ','P013WZ','A050DA','A050DB','A050DC','C086MU','M013ST','A060MB','A060MC','A060ME','A050DG','A060MG','A060MA','A050CB','A050CA','A050AA','A050AB','A060MH','A060MI','P003OL','M023AT','M023BT','M024BT','M024CT','M024MT','M056MT','M109AT','M109MT','M115MT','W032BT','W032BM','W058MV','W010MM','A060MD','M029MS','W012TA','W012TB','W012TC','A013SA','W003LS','A060AC','W121MA','W121MS','A060ML'];
+  // 用户提供的目标文件夹名列表（主程序读取此变量）
+  var targetFolderNames = ['M001MT','M002MT','W013GZ','W003MM','W013LS','M013MT','W013LM','W036MZ','W003MN','C013SS','C012SS','W003SS','W034MW','W011MW','W011MR','W033BM','W011MB','W013SS','W034MW','A012SS','A010MZ','W010MZ','A012MS','A013MS','A037MS','W013WZ','W058MH','M003MT','A013BZ','W034ML','W010BM','W010LZ','A013WZ','P013WZ','A050DA','A050DB','A050DC','C086MU','M013ST','A060MB','A060MC','A060ME','A050DG','A060MG','A060MA','A050CB','A050CA','A050AA','A050AB','A060MH','A060MI','P003OL','M023AT','M023BT','M024BT','M024CT','M024MT','M056MT','M109AT','M109MT','M115MT','W032BT','W032BM','W058MV','W010MM','A060MD','M029MS','W012TA','W012TB','W012TC','A013SA','W003LS','A060AC','W121MA','W121MS','A060ML'];
 
-  $.writeln('目标SKU前缀列表包含 ' + targetSKUPrefixes.length + ' 个项目');
-  $.writeln('targetSKUPrefixes数组验证: ' + (targetSKUPrefixes.length > 0 ? '正常' : '异常-数组为空'));
+  $.writeln('目标文件夹名列表包含 ' + targetFolderNames.length + ' 个项目');
+  $.writeln('targetFolderNames数组验证: ' + (targetFolderNames.length > 0 ? '正常' : '异常-数组为空'));
   
   // 输出前几个项目用于调试
-  if(targetSKUPrefixes.length > 0) {
-    $.writeln('前5个目标SKU前缀: ' + targetSKUPrefixes.slice(0, 5).join(', '));
+  if(targetFolderNames.length > 0) {
+    $.writeln('前5个目标文件夹名: ' + targetFolderNames.slice(0, 5).join(', '));
   }
 
   // 主处理逻辑
@@ -210,7 +226,7 @@ try {
     var sku = skuGroups[i];
     
     // 检查SKU是否在目标列表中
-    if (targetSKUPrefixes.indexOf(sku) >= 0) {
+    if (targetFolderNames.indexOf(sku) >= 0) {
       var files = groupedFiles[sku];
       
       $.writeln('--- 处理目标SKU组: ' + sku + ' (' + files.length + ' 个文件) ---');
@@ -246,8 +262,8 @@ try {
   $.writeln('=== 批处理完成 ===');
   $.writeln('总计处理: ' + totalProcessed + ' 个文件');
   $.writeln('处理失败: ' + totalErrors + ' 个文件');
-  $.writeln('目标SKU组数量: ' + (skuGroups.length - skippedSKUs.length));
-  $.writeln('跳过SKU组数量: ' + skippedSKUs.length);
+  $.writeln('目标文件夹组数量: ' + (skuGroups.length - skippedSKUs.length));
+  $.writeln('跳过文件夹组数量: ' + skippedSKUs.length);
 
   // 设置状态供宿主读取
   $.setenv('PS_LAST_RUN_DONE','1');
