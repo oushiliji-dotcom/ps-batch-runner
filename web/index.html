@@ -98,6 +98,7 @@
         <span>设计工坊</span>
       </div>
       <nav class="nav-actions">
+        <button class="btn secondary" onclick="openSkuConfig()">SKU配置</button>
         <button class="btn secondary" onclick="openSettings()">设置</button>
         <button class="btn success" onclick="run()">开始处理</button>
       </nav>
@@ -113,19 +114,6 @@
           <div class="input-group">
             <input id="inputDir" type="text" placeholder="选择包含图片文件的目录" />
             <button class="btn secondary browse-btn" onclick="selectInputDir()">浏览</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel sku-config-section">
-      <h2>SKU前缀配置</h2>
-      <div class="row">
-        <div>
-          <label>批量处理SKU前缀列表 (使用内置脚本)</label>
-          <textarea id="targetFolderNames" placeholder="请输入SKU前缀列表，用逗号(,)分隔，例如: M001MT,M002MT,W013GZ...&#10;匹配的前缀将使用batch-template.jsx处理&#10;未匹配的前缀会自动查找对应的JSX文件" style="height: 120px;">M001MT,M002MT,W013GZ,W003MM,W013LS,M013MT,W013LM,W036MZ,W003MN,C013SS,C012SS,W003SS,W034MW,W011MW,W011MR,W033BM,W011MB,W013SS,W034MW,A012SS,A010MZ,W010MZ,A012MS,A013MS,A037MS,W013WZ,W058MH,M003MT,A013BZ,W034ML,W010BM,W010LZ,A013WZ,P013WZ,A050DA,A050DB,A050DC,C086MU,M013ST,A060MB,A060MC,A060ME,A050DG,A060MG,A060MA,A050CB,A050CA,A050AA,A050AB,A060MH,A060MI,P003OL,M023AT,M023BT,M024BT,M024CT,M024MT,M056MT,M109AT,M109MT,M115MT,W032BT,W032BM,W058MV,W010MM,A060MD,M029MS,W012TA,W012TB,W012TC,A013SA,W003LS,A060AC,W121MA,W121MS,A060ML</textarea>
-          <div class="sku-help-text">
-            💡 <strong>使用说明：</strong>在此输入的SKU前缀将优先使用batch-template.jsx处理，其他前缀会自动匹配文件夹内的JSX脚本
           </div>
         </div>
       </div>
@@ -182,6 +170,33 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- SKU配置弹窗 -->
+  <div id="skuConfigModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSkuConfig()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">SKU前缀配置</div>
+        <button class="btn secondary" onclick="closeSkuConfig()">完成</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div>
+            <label>批量处理SKU前缀列表 (使用内置脚本)</label>
+            <textarea id="targetFolderNames" placeholder="请输入SKU前缀列表，用逗号(,)分隔，例如: M001MT,M002MT,W013GZ...&#10;匹配的前缀将使用batch-template.jsx处理&#10;未匹配的前缀会自动查找对应的JSX文件" style="height: 200px;">M001MT,M002MT,W013GZ,W003MM,W013LS,M013MT,W013LM,W036MZ,W003MN,C013SS,C012SS,W003SS,W034MW,W011MW,W011MR,W033BM,W011MB,W013SS,W034MW,A012SS,A010MZ,W010MZ,A012MS,A013MS,A037MS,W013WZ,W058MH,M003MT,A013BZ,W034ML,W010BM,W010LZ,A013WZ,P013WZ,A050DA,A050DB,A050DC,C086MU,M013ST,A060MB,A060MC,A060ME,A050DG,A060MG,A060MA,A050CB,A050CA,A050AA,A050AB,A060MH,A060MI,P003OL,M023AT,M023BT,M024BT,M024CT,M024MT,M056MT,M109AT,M109MT,M115MT,W032BT,W032BM,W058MV,W010MM,A060MD,M029MS,W012TA,W012TB,W012TC,A013SA,W003LS,A060AC,W121MA,W121MS,A060ML</textarea>
+            <div style="margin-top: 12px; padding: 12px; background: #f8f9ff; border-radius: 6px; border-left: 4px solid #007AFF;">
+              <div style="font-size: 14px; color: #333; margin-bottom: 8px;"><strong>💡 使用说明</strong></div>
+              <div style="font-size: 13px; color: #666; line-height: 1.5;">
+                • <strong>混合匹配策略：</strong>在此输入的SKU前缀将优先使用batch-template.jsx处理<br>
+                • <strong>自动回退：</strong>未匹配的前缀会自动查找文件夹内对应的JSX脚本<br>
+                • <strong>格式要求：</strong>多个前缀用逗号(,)分隔，支持换行输入
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -254,6 +269,10 @@
     async function selectRulesJsonPath() { try { const path = await window.electronAPI.selectFile({ filters: [{ name: 'JSON文件', extensions: ['json'] }, { name: '所有文件', extensions: ['*'] }] }); if (path) { $id('rulesJsonPath').value = path; await saveConfig(); } } catch (error) { log(`选择规则JSON失败: ${error.message}`); } }
     function openSettings() { const m = $id('settingsModal'); if (m) m.setAttribute('aria-hidden', 'false'); }
     function closeSettings() { const m = $id('settingsModal'); if (m) m.setAttribute('aria-hidden', 'true'); saveConfig(); }
+
+    // SKU配置弹窗函数
+    function openSkuConfig() { const m = $id('skuConfigModal'); if (m) m.setAttribute('aria-hidden', 'false'); }
+    function closeSkuConfig() { const m = $id('skuConfigModal'); if (m) m.setAttribute('aria-hidden', 'true'); saveConfig(); }
 
 
     // 自动保存绑定
