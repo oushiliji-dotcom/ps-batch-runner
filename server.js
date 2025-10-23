@@ -44,8 +44,7 @@ function extractSKUPrefix(filename) {
   return baseName.substring(0, 6);
 }
 
-// ★★★ 修改点 2: 升级 selectJSXScript 函数 ★★★
-// 它现在接收一个从UI传来的 targetFolderNames 数组
+// ★★★ 混合匹配策略: 优先使用batch-template.jsx，备用方案是文件夹内JSX匹配 ★★★
 function selectJSXScript(inputFile, jsxDir, targetFolderNames) {
   console.log(`为文件 ${inputFile} 选择JSX脚本`);
   
@@ -59,41 +58,41 @@ function selectJSXScript(inputFile, jsxDir, targetFolderNames) {
   // 增加日志输出，显示从UI读取到的数组
   console.log('从UI配置读取到的 targetFolderNames:', targetFolderNames);
 
-  // ★★★ 核心逻辑改变: 不再读文件，而是直接使用传入的数组 ★★★
-  if (targetFolderNames.includes(prefix)) {
+  // ★★★ 策略1: 优先检查文本框输入的前缀，匹配就使用batch-template.jsx ★★★
+  if (targetFolderNames && targetFolderNames.length > 0 && targetFolderNames.includes(prefix)) {
     const batchTemplatePath = path.join(resourcesPath, 'jsx', 'batch-template.jsx');
     if (fs.existsSync(batchTemplatePath)) {
-      console.log(`在UI配置的 targetFolderNames 中找到匹配的前缀: ${prefix}`);
+      console.log(`✓ 在UI配置的前缀列表中找到匹配: ${prefix} -> 使用 batch-template.jsx`);
       return batchTemplatePath;
     } else {
-      console.error(`内置脚本 batch-template.jsx 文件不存在: ${batchTemplatePath}`);
+      console.error(`✗ batch-template.jsx 文件不存在: ${batchTemplatePath}`);
     }
   }
   
-  // (后续的独立脚本查找逻辑保持不变)
-  console.log(`在UI配置中未找到 ${prefix}，开始搜索外部JSX目录: ${jsxDir}`);
+  // ★★★ 策略2: 未匹配的前缀，从文件夹内查找对应的JSX文件 ★★★
+  console.log(`前缀 ${prefix} 不在UI配置中，开始搜索文件夹内的JSX脚本: ${jsxDir}`);
   if (!fs.existsSync(jsxDir)) {
-    console.error(`外部JSX目录不存在: ${jsxDir}`);
+    console.error(`JSX目录不存在: ${jsxDir}`);
     return null;
   }
   
   try {
     const jsxFiles = fs.readdirSync(jsxDir).filter(file => file.endsWith('.jsx'));
-    console.log(`外部JSX目录中找到 ${jsxFiles.length} 个JSX文件:`, jsxFiles);
+    console.log(`JSX目录中找到 ${jsxFiles.length} 个JSX文件:`, jsxFiles);
     
     for (const jsxFile of jsxFiles) {
       const jsxFileName = path.basename(jsxFile, '.jsx');
       if (jsxFileName.includes(prefix)) {
         const jsxPath = path.join(jsxDir, jsxFile);
-        console.log(`找到匹配的外部JSX脚本: ${jsxPath}`);
+        console.log(`✓ 找到匹配的文件夹JSX脚本: ${prefix} -> ${jsxPath}`);
         return jsxPath;
       }
     }
   } catch (error) {
-    console.error('搜索外部JSX文件时出错:', error);
+    console.error('搜索文件夹JSX文件时出错:', error);
   }
   
-  console.log(`未找到匹配 ${prefix} 的JSX脚本`);
+  console.log(`✗ 未找到匹配 ${prefix} 的任何JSX脚本（既不在UI配置中，也不在文件夹内）`);
   return null;
 }
 
