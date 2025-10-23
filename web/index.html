@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>设计工坊</title>
   <style>
+    /* ... (您原来的 CSS 样式保持不变) ... */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
     .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 20px; }
@@ -30,6 +31,49 @@
     label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
     input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
     input[type="text"]:focus { outline: none; border-color: #007AFF; }
+    
+    /* ★★★ 新增：为我们的新文本框添加样式 ★★★ */
+    textarea { 
+      width: 100%; 
+      padding: 8px; 
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      resize: vertical;
+      line-height: 1.4;
+    }
+    textarea:focus { outline: none; border-color: #007AFF; box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2); }
+    
+    /* SKU前缀配置区域特殊样式 */
+    .sku-config-section {
+      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+      border: 1px solid #e1e8ff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .sku-config-section h2 {
+      color: #4a5568;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sku-config-section h2::before {
+      content: "🎯";
+      font-size: 18px;
+    }
+    .sku-help-text {
+      margin-top: 8px; 
+      font-size: 12px; 
+      color: #666;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 8px 12px;
+      border-radius: 4px;
+      border-left: 3px solid #007AFF;
+    }
+    
     .status { padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 10px; font-weight: 500; }
     .log { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; flex: 1; overflow-y: auto; white-space: pre-wrap; min-height: 200px; }
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -38,7 +82,7 @@
     .modal-content { background: white; border-radius: 8px; padding: 0; width: 90%; max-width: 600px; position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #e0e0e0; }
     .modal-title { font-size: 18px; font-weight: 600; }
-    .modal-body { padding: 20px; }
+    .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; } /* 允许弹窗内容滚动 */
     .browse-btn { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
   </style>
 </head>
@@ -46,19 +90,9 @@
   <header class="header">
     <div class="nav">
       <div class="logo">
-        <!-- 内联紫色仙女棒LOGO，避免外链SVG在部分浏览器的颜色回退问题 -->
         <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <rect x="8" y="8" width="112" height="112" rx="24" fill="#F7F3FF"/>
-          <g>
-            <path d="M40 88 L88 40" stroke="#8E5BFF" stroke-width="8" stroke-linecap="round"/>
-            <g transform="translate(88,40)">
-              <polygon points="0,-10 2,-3 10,-3 4,2 6,10 0,5 -6,10 -4,2 -10,-3 -2,-3" fill="#D7C7FF" stroke="#B48CFF" stroke-width="1.5"/>
-            </g>
-            <circle cx="72" cy="56" r="3" fill="#B48CFF" opacity="0.9"/>
-            <circle cx="82" cy="46" r="2" fill="#C8B3FF"/>
-            <circle cx="92" cy="52" r="2.5" fill="#A982FF"/>
-            <circle cx="78" cy="66" r="1.8" fill="#D6C7FF"/>
-          </g>
+          <g><path d="M40 88 L88 40" stroke="#8E5BFF" stroke-width="8" stroke-linecap="round"/><g transform="translate(88,40)"><polygon points="0,-10 2,-3 10,-3 4,2 6,10 0,5 -6,10 -4,2 -10,-3 -2,-3" fill="#D7C7FF" stroke="#B48CFF" stroke-width="1.5"/></g><circle cx="72" cy="56" r="3" fill="#B48CFF" opacity="0.9"/><circle cx="82" cy="46" r="2" fill="#C8B3FF"/><circle cx="92" cy="52" r="2.5" fill="#A982FF"/><circle cx="78" cy="66" r="1.8" fill="#D6C7FF"/></g>
           <rect x="8" y="8" width="112" height="112" rx="24" stroke="#B48CFF" stroke-opacity="0.35"/>
         </svg>
         <span>设计工坊</span>
@@ -70,7 +104,6 @@
     </div>
   </header>
 
-  <!-- 主内容 -->
   <main class="content">
     <section class="panel">
       <h2>输入目录</h2>
@@ -84,6 +117,19 @@
         </div>
       </div>
     </section>
+
+    <section class="panel sku-config-section">
+      <h2>SKU前缀配置</h2>
+      <div class="row">
+        <div>
+          <label>批量处理SKU前缀列表 (使用内置脚本)</label>
+          <textarea id="targetFolderNames" placeholder="请输入SKU前缀列表，用逗号(,)分隔，例如: M001MT,M002MT,W013GZ...&#10;匹配的前缀将使用batch-template.jsx处理&#10;未匹配的前缀会自动查找对应的JSX文件" style="height: 120px;">M001MT,M002MT,W013GZ,W003MM,W013LS,M013MT,W013LM,W036MZ,W003MN,C013SS,C012SS,W003SS,W034MW,W011MW,W011MR,W033BM,W011MB,W013SS,W034MW,A012SS,A010MZ,W010MZ,A012MS,A013MS,A037MS,W013WZ,W058MH,M003MT,A013BZ,W034ML,W010BM,W010LZ,A013WZ,P013WZ,A050DA,A050DB,A050DC,C086MU,M013ST,A060MB,A060MC,A060ME,A050DG,A060MG,A060MA,A050CB,A050CA,A050AA,A050AB,A060MH,A060MI,P003OL,M023AT,M023BT,M024BT,M024CT,M024MT,M056MT,M109AT,M109MT,M115MT,W032BT,W032BM,W058MV,W010MM,A060MD,M029MS,W012TA,W012TB,W012TC,A013SA,W003LS,A060AC,W121MA,W121MS,A060ML</textarea>
+          <div class="sku-help-text">
+            💡 <strong>使用说明：</strong>在此输入的SKU前缀将优先使用batch-template.jsx处理，其他前缀会自动匹配文件夹内的JSX脚本
+          </div>
+        </div>
+      </div>
+    </section>
     <section class="panel log-panel">
       <h2>处理进度与日志</h2>
       <div id="status" class="status">就绪</div>
@@ -91,7 +137,6 @@
     </section>
   </main>
 
-  <!-- 设置弹窗（右上角入口） -->
   <div id="settingsModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeSettings()"></div>
     <div class="modal-content">
@@ -111,7 +156,7 @@
         </div>
         <div class="row">
           <div>
-            <label>JSX 脚本路径</label>
+            <label>JSX 脚本路径 (独立脚本)</label>
             <div class="input-group">
               <input id="jsxPath" type="text" placeholder="选择包含JSX脚本的文件夹" />
               <button class="btn secondary browse-btn" onclick="selectJsxPath()">浏览</button>
@@ -136,6 +181,7 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -143,6 +189,9 @@
   <script>
     const $id = (x) => document.getElementById(x);
     let isRunning = false;
+
+    // ★★★ 修改点 2: 将 'targetFolderNames' 添加到所有配置相关的函数中 ★★★
+    const configKeys = ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath', 'targetFolderNames'];
 
     document.addEventListener('DOMContentLoaded', () => {
       loadConfig();
@@ -154,7 +203,7 @@
     async function loadConfig() {
       try {
         const config = await window.electronAPI.getConfig();
-        ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+        configKeys.forEach(k => {
           if (config[k]) {
             const el = $id(k);
             if (el) el.value = config[k];
@@ -168,13 +217,12 @@
 
     // 收集表单数据
     function collectConfig() {
-      return {
-        photoshopPath: ($id('photoshopPath').value || '').trim(),
-        jsxPath: ($id('jsxPath').value || '').trim(),
-        inputDir: ($id('inputDir').value || '').trim(),
-        outputDir: ($id('outputDir').value || '').trim(),
-        rulesJsonPath: ($id('rulesJsonPath').value || '').trim()
-      };
+      const config = {};
+      configKeys.forEach(k => {
+        const el = $id(k);
+        if (el) config[k] = (el.value || '').trim();
+      });
+      return config;
     }
 
     // 保存配置
@@ -187,92 +235,30 @@
       }
     }
 
-    // 文件/文件夹选择函数
-    async function selectInputDir() {
-      try {
-        const path = await window.electronAPI.selectDirectory();
-        if (path) {
-          $id('inputDir').value = path;
-          await saveConfig();
-        }
-      } catch (error) {
-        log(`选择输入目录失败: ${error.message}`);
-      }
-    }
-
-    async function selectPhotoshopPath() {
-      try {
-        const path = await window.electronAPI.selectFile({
-          filters: [
-            { name: 'Photoshop', extensions: ['exe'] },
-            { name: '所有文件', extensions: ['*'] }
-          ]
-        });
-        if (path) {
-          $id('photoshopPath').value = path;
-          await saveConfig();
-        }
-      } catch (error) {
-        log(`选择Photoshop路径失败: ${error.message}`);
-      }
-    }
-
-    async function selectJsxPath() {
-      try {
-        const path = await window.electronAPI.selectDirectory();
-        if (path) {
-          $id('jsxPath').value = path;
-          await saveConfig();
-        }
-      } catch (error) {
-        log(`选择JSX文件夹失败: ${error.message}`);
-      }
-    }
-
-    async function selectOutputDir() {
-      try {
-        const path = await window.electronAPI.selectDirectory();
-        if (path) {
-          $id('outputDir').value = path;
-          await saveConfig();
-        }
-      } catch (error) {
-        log(`选择输出目录失败: ${error.message}`);
-      }
-    }
-
-    async function selectRulesJsonPath() {
-      try {
-        const path = await window.electronAPI.selectFile({
-          filters: [
-            { name: 'JSON文件', extensions: ['json'] },
-            { name: '所有文件', extensions: ['*'] }
-          ]
-        });
-        if (path) {
-          $id('rulesJsonPath').value = path;
-          await saveConfig();
-        }
-      } catch (error) {
-        log(`选择规则JSON失败: ${error.message}`);
-      }
-    }
+    // ... (所有的文件/文件夹选择函数保持不变) ...
+    async function selectInputDir() { /* ... */ }
+    async function selectPhotoshopPath() { /* ... */ }
+    async function selectJsxPath() { /* ... */ }
+    async function selectOutputDir() { /* ... */ }
+    async function selectRulesJsonPath() { /* ... */ }
 
     // 弹窗控制
-    function openSettings() {
-      const m = $id('settingsModal');
-      if (m) m.setAttribute('aria-hidden', 'false');
-    }
+    function openSettings() { /* ... */ }
+    function closeSettings() { /* ... */ }
+    
+    // (为了简洁，未修改的函数已折叠)
+    async function selectInputDir() { try { const path = await window.electronAPI.selectDirectory(); if (path) { $id('inputDir').value = path; await saveConfig(); } } catch (error) { log(`选择输入目录失败: ${error.message}`); } }
+    async function selectPhotoshopPath() { try { const path = await window.electronAPI.selectFile({ filters: [{ name: 'Photoshop', extensions: ['exe'] }, { name: '所有文件', extensions: ['*'] }] }); if (path) { $id('photoshopPath').value = path; await saveConfig(); } } catch (error) { log(`选择Photoshop路径失败: ${error.message}`); } }
+    async function selectJsxPath() { try { const path = await window.electronAPI.selectDirectory(); if (path) { $id('jsxPath').value = path; await saveConfig(); } } catch (error) { log(`选择JSX文件夹失败: ${error.message}`); } }
+    async function selectOutputDir() { try { const path = await window.electronAPI.selectDirectory(); if (path) { $id('outputDir').value = path; await saveConfig(); } } catch (error) { log(`选择输出目录失败: ${error.message}`); } }
+    async function selectRulesJsonPath() { try { const path = await window.electronAPI.selectFile({ filters: [{ name: 'JSON文件', extensions: ['json'] }, { name: '所有文件', extensions: ['*'] }] }); if (path) { $id('rulesJsonPath').value = path; await saveConfig(); } } catch (error) { log(`选择规则JSON失败: ${error.message}`); } }
+    function openSettings() { const m = $id('settingsModal'); if (m) m.setAttribute('aria-hidden', 'false'); }
+    function closeSettings() { const m = $id('settingsModal'); if (m) m.setAttribute('aria-hidden', 'true'); saveConfig(); }
 
-    function closeSettings() {
-      const m = $id('settingsModal');
-      if (m) m.setAttribute('aria-hidden', 'true');
-      saveConfig();
-    }
 
     // 自动保存绑定
     function bindAutoSave() {
-      ['photoshopPath', 'jsxPath', 'inputDir', 'outputDir', 'rulesJsonPath'].forEach(k => {
+      configKeys.forEach(k => {
         const el = $id(k);
         if (el) {
           el.addEventListener('change', saveConfig);
@@ -301,18 +287,9 @@
         const config = collectConfig();
         
         // 基本验证
-        if (!config.inputDir) {
-          alert('请选择输入目录');
-          return;
-        }
-        if (!config.photoshopPath) {
-          alert('请选择Photoshop.exe路径');
-          return;
-        }
-        if (!config.outputDir) {
-          alert('请选择输出目录');
-          return;
-        }
+        if (!config.inputDir) { alert('请选择输入目录'); return; }
+        if (!config.photoshopPath) { alert('请选择Photoshop.exe路径'); return; }
+        if (!config.outputDir) { alert('请选择输出目录'); return; }
 
         isRunning = true;
         setStatus('处理中...');
@@ -337,23 +314,9 @@
     }
 
     // UI 辅助函数
-    function setStatus(text) {
-      const el = $id('status');
-      if (el) el.textContent = text;
-    }
-
-    function log(text) {
-      const el = $id('log');
-      if (el) {
-        el.textContent += text + '\n';
-        el.scrollTop = el.scrollHeight;
-      }
-    }
-
-    function clearLog() {
-      const el = $id('log');
-      if (el) el.textContent = '';
-    }
+    function setStatus(text) { $id('status').textContent = text; }
+    function log(text) { const el = $id('log'); el.textContent += text + '\n'; el.scrollTop = el.scrollHeight; }
+    function clearLog() { $id('log').textContent = ''; }
   </script>
 </body>
 </html>
