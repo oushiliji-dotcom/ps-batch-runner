@@ -9,13 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ★★★ 修改点 1: 定义一个在打包后也能正确找到 resources 文件夹的路径 ★★★
-// 检查是否在打包环境中。'.asar' 是 Electron 打包文件的特征。
+// ★★★ 我们的新“GPS导航仪” ★★★
 const isPackaged = __dirname.includes('.asar');
-// 如果在打包环境中, __dirname 指向 app.asar 内部, 我们需要它的上一级目录 (resources)
-// 如果在开发环境中, __dirname 就是项目根目录
 const resourcesPath = isPackaged ? path.join(__dirname, '..') : __dirname;
-
 
 // 运行环境与数据目录
 const isPkg = typeof process.pkg !== 'undefined';
@@ -39,41 +35,18 @@ function writeConfig(cfg) {
   } 
 }
 
-// 从 batch-template.jsx 读取 targetFolderNames 数组
-function getTargetFolderNames() {
-  try {
-    // ★★★ 修改点 2: 使用我们新定义的、更可靠的 resourcesPath ★★★
-    const batchTemplatePath = path.join(resourcesPath, 'jsx', 'batch-template.jsx');
-    
-    // 增加一个日志来确认最终路径是否正确
-    console.log('尝试读取内置脚本路径:', batchTemplatePath);
-    if (!fs.existsSync(batchTemplatePath)) {
-        console.error('严重错误: 内置的 batch-template.jsx 文件未找到!');
-        return [];
-    }
+// ★★★ 修改点 1: 彻底删除 getTargetFolderNames() 函数 ★★★
+// (那个导致所有问题的函数已经不存在了)
 
-    const content = fs.readFileSync(batchTemplatePath, 'utf8');
-    const match = content.match(/var\s+targetFolderNames\s*=\s*(\[[\s\S]*?\]);/);
-    if (match) {
-      const arrayStr = match[1];
-      // 使用更安全的方法解析数组，避免使用 eval
-      return JSON.parse(arrayStr.replace(/'/g, '"')); 
-    }
-  } catch (error) {
-    console.error('读取 targetFolderNames 失败:', error);
-  }
-  return [];
-}
-
-// ... (中间其他函数未改变，保持原样) ...
 // 提取SKU前缀（取文件名的前6位）
 function extractSKUPrefix(filename) {
   const baseName = path.basename(filename, path.extname(filename));
   return baseName.substring(0, 6);
 }
 
-// 选择JSX脚本
-function selectJSXScript(inputFile, jsxDir) {
+// ★★★ 修改点 2: 升级 selectJSXScript 函数 ★★★
+// 它现在接收一个从UI传来的 targetFolderNames 数组
+function selectJSXScript(inputFile, jsxDir, targetFolderNames) {
   console.log(`为文件 ${inputFile} 选择JSX脚本`);
   
   const prefix = extractSKUPrefix(inputFile);
@@ -82,22 +55,23 @@ function selectJSXScript(inputFile, jsxDir) {
     return null;
   }
   console.log(`提取到SKU前缀: ${prefix}`);
-  
-  const targetFolderNames = getTargetFolderNames();
-  // 增加日志输出，显示读取到的数组
-  console.log('从内置脚本读取到的 targetFolderNames:', targetFolderNames);
 
+  // 增加日志输出，显示从UI读取到的数组
+  console.log('从UI配置读取到的 targetFolderNames:', targetFolderNames);
+
+  // ★★★ 核心逻辑改变: 不再读文件，而是直接使用传入的数组 ★★★
   if (targetFolderNames.includes(prefix)) {
     const batchTemplatePath = path.join(resourcesPath, 'jsx', 'batch-template.jsx');
     if (fs.existsSync(batchTemplatePath)) {
-      console.log(`在内置脚本的 targetFolderNames 中找到匹配的前缀: ${prefix}`);
+      console.log(`在UI配置的 targetFolderNames 中找到匹配的前缀: ${prefix}`);
       return batchTemplatePath;
     } else {
       console.error(`内置脚本 batch-template.jsx 文件不存在: ${batchTemplatePath}`);
     }
   }
   
-  console.log(`在内置脚本中未找到 ${prefix}，开始搜索外部JSX目录: ${jsxDir}`);
+  // (后续的独立脚本查找逻辑保持不变)
+  console.log(`在UI配置中未找到 ${prefix}，开始搜索外部JSX目录: ${jsxDir}`);
   if (!fs.existsSync(jsxDir)) {
     console.error(`外部JSX目录不存在: ${jsxDir}`);
     return null;
@@ -123,9 +97,8 @@ function selectJSXScript(inputFile, jsxDir) {
   return null;
 }
 
-// 执行Photoshop脚本的函数
+// ... (executePhotoshopScript 函数保持不变) ...
 function executePhotoshopScript(scriptPath, env, photoshopPath) {
-    // ... (此函数内容未改变，保持原样) ...
     return new Promise((resolve, reject) => {
         console.log('准备执行Photoshop脚本:', scriptPath);
         console.log('Photoshop路径:', photoshopPath);
@@ -153,47 +126,69 @@ function executePhotoshopScript(scriptPath, env, photoshopPath) {
 
 
 // 静态页面
-app.use('/', express.static(path.join(resourcesPath, 'web'))); // 也使用新路径确保web页面能找到
+app.use('/', express.static(path.join(resourcesPath, 'web')));
 
-// API
-app.get('/api/target-folders', (req, res) => res.json({ folders: getTargetFolderNames() }));
+// ★★★ 修改点 3: 彻底删除 /api/target-folders 路由 ★★★
+// (这个API已经没有意义了)
+
+// API路由
 app.get('/api/config', (req, res) => res.json(readConfig()));
-app.post('/api/config', (req, res) => { writeConfig(req.body || {}); res.json({ ok: true }); });
+app.post('/api/config', (req, res) => { 
+  writeConfig(req.body || {}); 
+  res.json({ ok: true }); 
+});
 
 // 运行Photoshop任务
 app.post('/api/run', async (req, res) => {
   const cfg = Object.assign(readConfig(), req.body || {});
-  const { photoshopPath, inputDir, outputDir, rulesJsonPath } = cfg;
+  const {
+    photoshopPath,
+    inputDir,
+    outputDir,
+    rulesJsonPath,
+    headless,
+    targetFolderNames // ★★★ 接收来自UI的新字段 ★★★
+  } = cfg;
 
   if (!inputDir || !outputDir) {
     return res.status(400).json({ ok: false, msg: '缺少必要参数：inputDir / outputDir' });
   }
+  
+  // ★★★ 修改点 4: 解析来自UI的SKU列表字符串 ★★★
+  const userTargetFolders = (targetFolderNames || '')
+                            .split(',') // 用逗号分隔
+                            .map(s => s.trim()) // 去掉多余的空格
+                            .filter(Boolean); // 去掉空字符串
 
   try {
     const inputFiles = fs.readdirSync(inputDir);
     const processableFiles = [];
     const unprocessableFiles = [];
 
-    // ★★★ 修改点 3: 使用我们新定义的、更可靠的 resourcesPath 作为默认JSX目录 ★★★
     const jsxDir = cfg.jsxPath || path.join(resourcesPath, 'jsx');
     console.log('使用的JSX目录:', jsxDir);
-    
-    // ... (后续逻辑未改变，保持原样) ...
+
     if (!fs.existsSync(jsxDir)) {
       return res.status(400).json({ error: `JSX目录不存在: ${jsxDir}。请在设置中配置正确的JSX脚本路径。` });
     }
+
+    // 分类文件
     for (const file of inputFiles) {
-        const filePath = path.join(inputDir, file);
-        if (fs.statSync(filePath).isFile()) {
-            const selectedScript = selectJSXScript(file, jsxDir);
-            if (selectedScript) {
-                processableFiles.push({ file, script: selectedScript });
-            } else {
-                unprocessableFiles.push(file);
-            }
+      const filePath = path.join(inputDir, file);
+      if (fs.statSync(filePath).isFile()) {
+        // ★★★ 修改点 5: 将解析好的数组传递给 selectJSXScript ★★★
+        const selectedScript = selectJSXScript(file, jsxDir, userTargetFolders);
+        if (selectedScript) {
+          processableFiles.push({ file, script: selectedScript });
+        } else {
+          unprocessableFiles.push(file);
         }
+      }
     }
-    // ... (后续逻辑未改变，保持原样) ...
+    
+    // ... (后续的处理逻辑保持不变) ...
+    console.log(`可处理文件: ${processableFiles.length} 个`);
+    console.log(`无法处理文件: ${unprocessableFiles.length} 个`);
     if (unprocessableFiles.length > 0) {
         const unprocessableDir = path.join(outputDir, '无法处理');
         if (!fs.existsSync(unprocessableDir)) fs.mkdirSync(unprocessableDir, { recursive: true });
@@ -228,7 +223,9 @@ app.post('/api/run', async (req, res) => {
       message: `批量处理完成！成功: ${successCount}, 失败: ${errorCount}, 无法处理: ${unprocessableFiles.length}`,
       successCount, errorCount, unprocessableCount: unprocessableFiles.length, totalFiles: inputFiles.length, results
     });
+
   } catch (error) {
+    console.error('处理过程中出错:', error);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
